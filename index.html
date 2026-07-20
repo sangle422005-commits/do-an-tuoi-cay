@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ Thống Tưới Tiêu & Quản Lý Phần Cứng Cảm Biến</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+   
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-image:linear-gradient(rgba(240, 244, 248, 0.4), rgba(240, 244, 248, 0.4)), url('assets/images/background.jpg'); background-size: cover; background-position: center; background-repeat: no-repeat; background-attachment: fixed; color: #333; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding: 20px; }
+        header { text-align: center; margin-bottom: 25px; background-color: rgba(255, 255, 255, 0.8); padding: 15px 30px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); backdrop-filter: blur(5px); }
+        header h1 { color: #1e3d59; font-size: 2.2rem; margin-bottom: 8px; }
+        header h1 i { color: #17b978; margin-right: 10px; }
+        header h2 { color: #13579f; font-size: 1.3rem; margin-bottom: 5px; font-weight: 600; }
+        header p { color: #686d76; font-size: 1rem; }
+        .container { width: 100%; max-width: 1200px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; padding: 10px; }
+        .card { background-color: #ffffff; border-radius: 20px; padding: 20px; box-shadow: 0 8px 16px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; justify-content: space-between; transition: transform 0.3s ease, box-shadow 0.3s ease; position: relative; }
+        .card-header-simple { display: flex; align-items: center; gap: 12px; margin-bottom: 15px; }
+        .card-icon-circle { width: 45px; height: 45px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }
+        .card-title-text { font-size: 1rem; font-weight: 700; color: #7d8e9e; text-transform: uppercase; }
+        .card-value { font-size: 2.3rem; font-weight: 700; color: #1e3d59; text-align: center; margin: 15px 0; }
+       
+        .time-card .card-icon-circle { background-color: #e0f2f1; color: #00897b; }
+        .soil-card .card-icon-circle { background-color: #e0f4ff; color: #00a8cc; }
+        .temp-card .card-icon-circle { background-color: #ffebe9; color: #ff6f61; }
+        .hum-card .card-icon-circle { background-color: #e3f2fd; color: #4facfe; }
+        .weather-card .card-icon-circle { background-color: #fff8e1; color: #ffb11b; }
+       
+        .click-indicator { position: absolute; top: 20px; right: 20px; font-size: 0.85rem; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .click-indicator i { transition: transform 0.3s ease; }
+        .card.expanded .click-indicator i { transform: rotate(180deg); }
+        .sub-detail-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 5px; font-size: 0.95rem; color: #4a5568; }
+        .sub-detail-val { font-weight: bold; color: #1e3d59; font-size: 1.1rem; }
+       
+        .weather-card { cursor: pointer; }
+        .weather-card .click-indicator { color: #ffb11b; }
+        .weather-expanded-details { max-height: 0; opacity: 0; overflow: hidden; transition: max-height 0.4s ease-out, opacity 0.3s ease, margin-top 0.3s ease; width: 100%; }
+        .weather-card.expanded .weather-expanded-details { max-height: 250px; opacity: 1; margin-top: 15px; border-top: 1px dashed #ffe082; padding-top: 10px; }
+       
+        .camera-card { grid-column: span 2; }
+        .camera-screen { width: 100%; height: 230px; background-color: #111; border-radius: 12px; position: relative; overflow: hidden; border: 3px solid #1e3d59; }
+        .garden-bg { width: 100%; height: 100%; background-size: cover; background-position: center; transition: background-image 0.5s ease; }
+        .cam-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; font-family: monospace; font-size: 0.85rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
+        .live-badge { background-color: rgba(255, 0, 0, 0.8); padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; animation: blink 1s infinite alternate; }
+       
+        .pump-options { display: flex; flex-direction: column; gap: 10px; margin-top: 5px; }
+        .option-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #eee; }
+        .mode-selector { display: flex; background-color: #f0f4f8; padding: 4px; border-radius: 10px; }
+        .mode-btn { border: none; padding: 5px 10px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 0.8rem; }
+        .mode-btn.active { background-color: #1e3d59; color: white; }
+        .switch { position: relative; display: inline-block; width: 55px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 30px; }
+        .slider:before { position: absolute; content: ""; height: 22px; width: 22px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #17b978; }
+        input:checked + .slider:before { transform: translateX(27px); }
+        input:disabled + .slider { opacity: 0.5; }
+       
+        .display-hardware-card { grid-column: span 1; background-color: #1f2937; color: #fff; }
+        .lcd-case { background-color: #0d1b2a; border: 6px solid #415a77; border-radius: 10px; padding: 12px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); margin-bottom: 15px; }
+        .lcd-screen { background-color: #0077b6; color: #e0f1f9; font-family: 'Courier New', Courier, monospace; font-weight: bold; font-size: 1.25rem; letter-spacing: 2px; padding: 8px; border-radius: 4px; box-shadow: inset 0 0 12px rgba(0,0,0,0.5); line-height: 1.4; text-transform: uppercase; }
+        .lcd-line { white-space: pre; min-height: 1.4rem; }
+        .led-case { display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #111827; padding: 15px; border-radius: 12px; border: 1px solid #374151; }
+        .led-diode { width: 40px; height: 40px; border-radius: 50%; background-color: #374151; margin-bottom: 10px; transition: all 0.4s ease; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        .led-diode.green { background-color: #00ff66; box-shadow: 0 0 20px #00ff66, 0 0 40px #00ff66; }
+        .led-diode.blue { background-color: #0099ff; box-shadow: 0 0 20px #0099ff, 0 0 40px #0099ff; }
+        .led-diode.red { background-color: #ff3333; box-shadow: 0 0 20px #ff3333, 0 0 40px #ff3333; animation: pulse-led-alert 0.6s infinite alternate; }
+        .led-label { font-size: 0.85rem; color: #9ca3af; font-weight: 600; }
+       
+        .hardware-card { grid-column: span 2; }
+        .status-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left; }
+        .status-table th { color: #7d8e9e; padding: 10px 8px; border-bottom: 2px solid #edf2f7; font-weight: 600; }
+        .status-table td { padding: 12px 8px; border-bottom: 1px solid #edf2f7; }
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; font-weight: bold; display: inline-flex; align-items: center; gap: 5px; }
+        .badge-success { background-color: #e6f7ed; color: #17b978; }
+        .badge-danger { background-color: #ffebe9; color: #ff6f61; }
+       
+        .alarm-card { border: 2px solid #e8e8e8; transition: all 0.3s ease; }
+        .alarm-card.active { border-color: #ff4d4d; background-color: #fff5f5; animation: pulse-red 2s infinite; }
+        .alarm-card .card-icon-circle { background-color: #eee; color: #ccc; }
+        .alarm-card.active .card-icon-circle { background-color: #ffebee; color: #ff4d4d; }
+       
+        @keyframes blink { from { opacity: 1; } to { opacity: 0.3; } }
+        @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4); } 70% { box-shadow: 0 0 0 15px rgba(255, 77, 77, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); } }
+        @keyframes pulse-led-alert { from { box-shadow: 0 0 10px #ff3333; } to { box-shadow: 0 0 25px #ff3333, 0 0 45px #ff3333; } }
+        @media (max-width: 900px) { .camera-card, .hardware-card, .display-hardware-card { grid-column: span 1; } }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1><i class="fa-solid fa-microchip"></i>ĐỒ ÁN 2 LỚP: DV2301B</h1>
+        <h2>HỆ THỐNG ĐIỀU KHIỂN SÂN VƯỜN THÔNG MINH</h2>
+        <p>Tích hợp API Thời tiết & Kết nối trực tiếp mạch ESP32</p>
+    </header>
+
+    <div class="container">
+       
+        <!-- CARD BƠM -->
+        <div class="card pump-card">
+            <div class="card-header-simple">
+                <div class="card-icon-circle" style="background-color: #e8f5e9; color: #2e7d32;"><i class="fa-solid fa-faucet-drip"></i></div>
+                <div class="card-title-text">Bơm & Tưới Tiêu</div>
+            </div>
+            <div class="pump-options">
+                <div class="option-row">
+                    <span>Chế độ điều khiển:</span>
+                    <div class="mode-selector">
+                        <button id="mode-auto" class="mode-btn" onclick="setMode('auto')">Auto</button>
+                        <button id="mode-manual" class="mode-btn active" onclick="setMode('manual')">Manual</button>
+                    </div>
+                </div>
+                <div class="option-row">
+                    <span>Công tắc Relay (Bơm):</span>
+                    <label class="switch">
+                        <input type="checkbox" id="pump-toggle" onchange="togglePump(this)" disabled>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div style="text-align: center; margin: 10px 0;">
+                    <div style="font-weight: bold; font-size: 1.1rem; color: #888;" id="pump-status-text">ĐANG TẢI DỮ LIỆU...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARD MÔ PHỎNG LCD & LED -->
+        <div class="card display-hardware-card">
+            <div class="card-header-simple">
+                <div class="card-icon-circle" style="background-color: #374151; color: #60a5fa;"><i class="fa-solid fa-desktop"></i></div>
+                <div class="card-title-text" style="color: #9ca3af;">LCD & LED RGB VẬT LÝ</div>
+            </div>
+            <div class="lcd-case">
+                <div class="lcd-screen">
+                    <div class="lcd-line" id="lcd-row-1">LOADING...</div>
+                    <div class="lcd-line" id="lcd-row-2">WAITING PING</div>
+                </div>
+            </div>
+            <div class="led-case">
+                <div class="led-diode" id="hardware-led-rgb"></div>
+                <div class="led-label" id="hardware-led-text">ĐÈN LED: ĐANG TẢI...</div>
+            </div>
+        </div>
+
+        <!-- CARD ĐỘ ẨM ĐẤT TỪ ESP32 -->
+        <div class="card soil-card">
+            <div>
+                <div class="card-header-simple">
+                    <div class="card-icon-circle"><i class="fa-solid fa-droplet"></i></div>
+                    <div class="card-title-text">Độ ẩm đất (ESP32)</div>
+                </div>
+                <div class="card-value" id="soil-val" style="font-size: 3rem;">--%</div>
+                <p style="color: #888; font-size: 0.9rem; text-align: center; font-weight: bold;" id="soil-summary-note">Đang chờ mạch ESP32 gửi lên...</p>
+            </div>
+        </div>
+       
+        <!-- CARD NHIỆT ĐỘ KHÍ -->
+        <div class="card temp-card">
+            <div class="card-header-simple">
+                <div class="card-icon-circle"><i class="fa-solid fa-temperature-half"></i></div>
+                <div class="card-title-text">Nhiệt độ khí</div>
+            </div>
+            <div class="card-value" id="temp-val">--°C</div>
+            <p style="color: #888; font-size: 0.85rem; text-align: center;">Cập nhật từ Open-Meteo API</p>
+        </div>
+
+        <!-- CARD ĐỘ ẨM KHÍ -->
+        <div class="card hum-card">
+            <div class="card-header-simple">
+                <div class="card-icon-circle"><i class="fa-solid fa-water"></i></div>
+                <div class="card-title-text">Độ ẩm khí</div>
+            </div>
+            <div class="card-value" id="hum-val">--%</div>
+            <p style="color: #888; font-size: 0.85rem; text-align: center;">Cập nhật từ Open-Meteo API</p>
+        </div>
+
+        <!-- CARD THỜI TIẾT TỪ VỆ TINH -->
+        <div class="card weather-card" id="weather-main-card" onclick="toggleWeatherAccordion()">
+            <div class="click-indicator" id="weather-click-indicator-text">Xem thêm <i class="fa-solid fa-chevron-down"></i></div>
+            <div>
+                <div class="card-header-simple">
+                    <div class="card-icon-circle" id="weather-icon"><i class="fa-solid fa-cloud"></i></div>
+                    <div class="card-title-text">Dự báo thời tiết</div>
+                </div>
+                <div class="card-value" id="weather-val" style="font-size: 1.5rem;">Đang tải...</div>
+                <p style="color: #888; font-size: 0.85rem; text-align: center;" id="weather-note">Dữ liệu từ Open-Meteo API</p>
+            </div>
+            <div class="weather-expanded-details">
+                <div class="sub-detail-row">
+                    <span><i class="fa-solid fa-clock-rotate-left" style="color:#4caf50; margin-right:8px;"></i>Mốc dữ liệu API:</span>
+                    <span class="sub-detail-val" id="api-time-val" style="font-size: 0.95rem; color: #17b978;">--:--</span>
+                </div>
+                <div class="sub-detail-row">
+                    <span><i class="fa-solid fa-cloud-rain" style="color:#6c757d; margin-right:8px;"></i>Lượng Mưa:</span>
+                    <span class="sub-detail-val" id="rain-val">-- mm</span>
+                </div>
+                <div class="sub-detail-row">
+                    <span><i class="fa-solid fa-wind" style="color:#9c27b0; margin-right:8px;"></i>Tốc độ Gió:</span>
+                    <span class="sub-detail-val" id="wind-val">-- km/h</span>
+                </div>
+                <div class="sub-detail-row">
+                    <span><i class="fa-solid fa-temperature-arrow-down" style="color:#ff9800; margin-right:8px;"></i>Nhiệt độ Đất:</span>
+                    <span class="sub-detail-val" id="soil-temp-val">-- °C</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARD CAMERA -->
+        <div class="card camera-card">
+            <div class="card-header-simple">
+                <div class="card-icon-circle" style="background-color: #eaeaff; color: #5c5fc8;"><i class="fa-solid fa-video"></i></div>
+                <div class="card-title-text">CCTV Camera Giám Sát (Live)</div>
+            </div>
+            <div class="camera-screen">
+                <div id="garden-view" class="garden-bg" style="background-image: url('https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80');"></div>
+                <div class="cam-overlay">
+                    <div class="cam-top">
+                        <div class="live-badge"><span>●</span> REC</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CARD BÁO ĐỘNG -->
+        <div class="card alarm-card" id="alarm-card">
+            <div class="card-header-simple">
+                <div class="card-icon-circle"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <div class="card-title-text">Trạng Thái Toàn Hệ Thống</div>
+            </div>
+            <div class="card-value" id="alarm-status" style="font-size: 1.4rem;">Đang tải...</div>
+        </div>
+
+        <!-- BẢNG THEO DÕI CẢM BIẾN -->
+        <div class="card hardware-card">
+            <div>
+                <div class="card-header-simple">
+                    <div class="card-icon-circle" style="background-color: #fff0e6; color: #ff8800;"><i class="fa-solid fa-microchip"></i></div>
+                    <div class="card-title-text">Trạng Thái Kết Nối Phần Cứng ESP32</div>
+                </div>
+                <table class="status-table">
+                    <thead><tr><th>Tên Thiết Bị</th><th>Cổng Mạch</th><th>Thông Số</th><th>Trạng Thái</th></tr></thead>
+                    <tbody id="sensors-table-body">
+                        <tr><td><strong>ESP32 Mạch Trung Tâm</strong></td><td><code style="background:#eef0f2; padding:2px 6px; border-radius:4px;">PIN 34</code></td><td id="table-moist-val">--%</td><td id="table-status-badge">Đang tải...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let isAlarmEmailSent = false;
+        let lastState = {}; // Optimization: Cache state to prevent redundant DOM updates
+
+        // =========================================================
+        // 1. UPDATE UI FUNCTION (State Diffing)
+        // =========================================================
+        function updateUI(data) {
+            if (!data) return;
+
+            let isOffline = data.isOffline;
+            let moisture = data.moisture;
+            let isPumpOn = data.isPumpOn;
+            let activeMode = data.mode;
+
+            // Only update DOM if the specific state value changed
+            if (lastState.isPumpOn !== isPumpOn || lastState.activeMode !== activeMode || lastState.isOffline !== isOffline) {
+                const pumpToggle = document.getElementById("pump-toggle");
+                pumpToggle.checked = isPumpOn;
+
+                if (activeMode === 'auto') {
+                    document.getElementById("mode-auto").classList.add("active");
+                    document.getElementById("mode-manual").classList.remove("active");
+                    pumpToggle.disabled = true;
+                } else {
+                    document.getElementById("mode-auto").classList.remove("active");
+                    document.getElementById("mode-manual").classList.add("active");
+                    pumpToggle.disabled = isOffline;
+                }
+
+                const statusText = document.getElementById("pump-status-text");
+                if (isOffline) {
+                    statusText.innerText = "HỆ THỐNG ĐANG MẤT KẾT NỐI ⚠️";
+                    statusText.style.color = "#ff9800";
+                } else if (isPumpOn) {
+                    statusText.innerText = "MÁY BƠM: ĐANG CHẠY 💧";
+                    statusText.style.color = "#17b978";
+                } else {
+                    statusText.innerText = "MÁY BƠM: ĐANG TẮT ❌";
+                    statusText.style.color = "#ff4d4d";
+                }
+            }
+
+            if (lastState.moisture !== moisture || lastState.isOffline !== isOffline) {
+                let moistureStr = isOffline ? "ERR" : (moisture + "%");
+                document.getElementById("soil-val").innerText = moistureStr;
+                document.getElementById("soil-val").style.color = isOffline ? "#ff4d4d" : "#1e3d59";
+                document.getElementById("soil-summary-note").innerText = isOffline ? "⚠️ Không nhận được dữ liệu từ ESP32" : "🟢 Đang nhận dữ liệu trực tiếp từ ESP32";
+
+                document.getElementById("table-moist-val").innerText = moistureStr;
+                document.getElementById("table-moist-val").style.color = isOffline ? "red" : "#333";
+            }
+
+            if (lastState.isOffline !== isOffline || lastState.moisture !== moisture || lastState.activeMode !== activeMode || lastState.isPumpOn !== isPumpOn) {
+                document.getElementById("lcd-row-1").innerText = isOffline ? "STATUS: OFFLINE!" : ("SOIL MOIST: " + moisture + "%");
+                document.getElementById("lcd-row-2").innerText = "MODE: " + activeMode.toUpperCase() + (isPumpOn ? " - ON " : " - OFF");
+
+                const ledDiode = document.getElementById("hardware-led-rgb");
+                const ledText = document.getElementById("hardware-led-text");
+                ledDiode.className = "led-diode";
+                if (isOffline) {
+                    ledDiode.classList.add("red"); ledText.innerText = "LED RGB: ĐỎ (MẤT KẾT NỐI ESP32)";
+                } else if (moisture < 30) {
+                    ledDiode.classList.add("red"); ledText.innerText = "LED RGB: ĐỎ (ĐẤT KHÔ!)";
+                } else if (activeMode === "manual") {
+                    ledDiode.classList.add("green"); ledText.innerText = "LED RGB: XANH LÁ (MANUAL)";
+                } else {
+                    ledDiode.classList.add("blue"); ledText.innerText = "LED RGB: XANH DƯƠNG (AUTO)";
+                }
+
+                document.getElementById("table-status-badge").innerHTML = isOffline
+                    ? `<span class="badge badge-danger"><i class="fa-solid fa-triangle-exclamation"></i> Mất kết nối</span>`
+                    : `<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Đang hoạt động</span>`;
+            }
+
+            // Alarm updates
+            const alarmCard = document.getElementById("alarm-card");
+            const alarmStatus = document.getElementById("alarm-status");
+           
+            if (isOffline) {
+                alarmCard.classList.add("active");
+                alarmStatus.innerText = "LỖI KẾT NỐI PHẦN CỨNG";
+                if (!isAlarmEmailSent) {
+                    fetch("/system-alarm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issueType: "MẤT KẾT NỐI ESP32", message: `Hệ thống đã mất tín hiệu từ mạch quá 8 giây. Mạch có thể đã bị rút điện, rớt wifi hoặc hỏng hóc.` }) });
+                    isAlarmEmailSent = true;
+                }
+            } else if (moisture < 30) {
+                alarmCard.classList.add("active");
+                alarmStatus.innerText = "HÚ CÒI CẢNH BÁO: ĐẤT KHÔ";
+                if (!isAlarmEmailSent) {
+                    fetch("/system-alarm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issueType: "Thiếu Nước Trầm Trọng", message: `Độ ẩm đất hiện tại đang ở mức nguy hiểm (${moisture}%).` }) });
+                    isAlarmEmailSent = true;
+                }
+            } else {
+                alarmCard.classList.remove("active");
+                alarmStatus.innerText = "Bình Thường - Đang Hoạt Động";
+                isAlarmEmailSent = false;
+            }
+
+            lastState = { ...data };
+        }
+
+        // =========================================================
+        // 2. REALTIME PUSH CONNECTION (SSE + Fallback)
+        // =========================================================
+        let fallbackTimer = null;
+
+        function connectSSE() {
+            if (!!window.EventSource) {
+                const eventSource = new EventSource("/api/web-events");
+
+                eventSource.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    updateUI(data);
+                };
+
+                eventSource.onerror = function() {
+                    eventSource.close();
+                    // Fallback to polling if SSE endpoint isn't supported by backend yet
+                    if (!fallbackTimer) {
+                        fallbackTimer = setInterval(pollFallback, 3000);
+                    }
+                };
+            } else {
+                fallbackTimer = setInterval(pollFallback, 3000);
+            }
+        }
+
+        async function pollFallback() {
+            try {
+                const res = await fetch("/api/web-sync");
+                const data = await res.json();
+                updateUI(data);
+            } catch (err) {}
+        }
+
+        connectSSE();
+
+        // =========================================================
+        // 3. OPTIMIZED CONTROL COMMANDS
+        // =========================================================
+        async function setMode(mode) {
+            // Optimistic update
+            updateUI({ ...lastState, mode: mode });
+            await fetch("/api/web-control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: 'mode', value: mode }) });
+        }
+
+        async function togglePump(checkbox) {
+            // Optimistic update
+            updateUI({ ...lastState, isPumpOn: checkbox.checked });
+            await fetch("/api/web-control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: 'pump', value: checkbox.checked }) });
+        }
+
+        // =========================================================
+        // 4. OPEN-METEO WEATHER API
+        // =========================================================
+        function toggleWeatherAccordion() {
+            const weatherCard = document.getElementById("weather-main-card");
+            const indicatorText = document.getElementById("weather-click-indicator-text");
+            weatherCard.classList.toggle("expanded");
+            indicatorText.innerHTML = weatherCard.classList.contains("expanded") ? `Thu gọn <i class="fa-solid fa-chevron-down"></i>` : `Xem thêm <i class="fa-solid fa-chevron-down"></i>`;
+        }
+
+        async function fetchRealWeather() {
+            try {
+                const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=10.7908&longitude=106.6313&current=relative_humidity_2m&hourly=temperature_2m,rain,soil_temperature_6cm,weather_code,wind_speed_10m&timezone=Asia%2FHo_Chi_Minh&forecast_days=1");
+                const data = await res.json();
+                let ch = new Date().getHours();
+               
+                document.getElementById("temp-val").innerText = Math.round(data.hourly.temperature_2m[ch]) + "°C";
+                document.getElementById("hum-val").innerText = data.current.relative_humidity_2m + "%";
+                document.getElementById("wind-val").innerText = data.hourly.wind_speed_10m[ch] + " km/h";
+                document.getElementById("rain-val").innerText = data.hourly.rain[ch] + " mm";
+                document.getElementById("soil-temp-val").innerText = data.hourly.soil_temperature_6cm[ch] + "°C";
+               
+                let apiDate = new Date(data.hourly.time[ch]);
+                document.getElementById("api-time-val").innerText = apiDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + " (" + apiDate.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'}) + ")";
+               
+                let wCode = data.hourly.weather_code[ch];
+                let isNight = (ch >= 18 || ch <= 5);
+                const wVal = document.getElementById("weather-val");
+                const wIcon = document.getElementById("weather-icon");
+               
+                if (wCode >= 50 && wCode <= 99) {
+                    wVal.innerText = "Có Mưa";
+                    wIcon.innerHTML = isNight ? '<i class="fa-solid fa-cloud-moon-rain"></i>' : '<i class="fa-solid fa-cloud-showers-heavy"></i>';
+                    wIcon.style.color = "#4facfe";
+                } else if (wCode <= 1) {
+                    wVal.innerText = isNight ? "Trời Trong" : "Trời Nắng";
+                    wIcon.innerHTML = isNight ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+                    wIcon.style.color = isNight ? "#f6e58d" : "#ff6f61";
+                } else {
+                    wVal.innerText = "Nhiều Mây";
+                    wIcon.innerHTML = isNight ? '<i class="fa-solid fa-cloud-moon"></i>' : '<i class="fa-solid fa-cloud-sun"></i>';
+                    wIcon.style.color = isNight ? "#a0aec0" : "#ffb11b";
+                }
+               
+                document.getElementById("weather-note").innerText = "Đã đồng bộ lúc: " + new Date().toLocaleTimeString('vi-VN');
+            } catch (e) {
+                console.log("Lỗi tải thời tiết", e);
+            }
+        }
+       
+        fetchRealWeather();
+        setInterval(fetchRealWeather, 900000);
+    </script>
+</body>
+</html>
