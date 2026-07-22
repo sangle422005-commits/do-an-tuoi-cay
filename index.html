@@ -311,7 +311,7 @@
             }
 
             if (lastState.isOffline !== isOffline || lastState.moisture !== moisture || lastState.activeMode !== activeMode || lastState.isPumpOn !== isPumpOn) {
-                ddocument.getElementById("lcd-row-1").innerText = isOffline ? "LOI: MAT KET NOI" : ("DO AM DAT: " + moisture + "%");
+                document.getElementById("lcd-row-1").innerText = isOffline ? "LOI: MAT KET NOI" : ("DO AM DAT: " + moisture + "%");
                 document.getElementById("lcd-row-2").innerText = "CHE DO: " + (activeMode === 'auto' ? "TUDONG" : "THUCONG") + (isPumpOn ? " - BOM:MO" : " - BOM:TAT");
 
                 const ledDiode = document.getElementById("hardware-led-rgb");
