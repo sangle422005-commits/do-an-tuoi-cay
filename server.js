@@ -9,7 +9,7 @@ app.use(express.json());
 
 // --- BREVO CONFIGURATION ---
 const BREVO_API_KEY = "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";
-const SENDER_EMAIL = "sangle422005@gmail.com"; // Matches your registered Brevo account
+const SENDER_EMAIL = "alert@brevo-mail.com"; // Uses Brevo's system sender domain
 const RECIPIENT_EMAIL = "sanglt3989@gmail.com";
 
 // Helper function to send email via Brevo REST API
