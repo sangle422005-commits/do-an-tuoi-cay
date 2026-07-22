@@ -1,16 +1,48 @@
 const express = require("express");
-const nodemailer = require("nodemailer");
 const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
-const { Resend } = require("resend");
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- RESEND EMAIL INITIALIZATION ---
-const resend = new Resend("re_buaZYAz4_LVvuW24JN6EZTV4nT819r9D2");
+// --- BREVO CONFIGURATION ---
+const BREVO_API_KEY = "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";
+const SENDER_EMAIL = "sangle422005@gmail.com"; // Matches your registered Brevo account
+const RECIPIENT_EMAIL = "sanglt3989@gmail.com";
+
+// Helper function to send email via Brevo REST API
+async function sendEmailAlert(toEmail, subject, htmlContent) {
+    try {
+        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+            method: "POST",
+            headers: {
+                "accept": "application/json",
+                "api-key": BREVO_API_KEY,
+                "content-type": "application/json"
+            },
+            body: JSON.stringify({
+                sender: { name: "Smart Garden Alert", email: SENDER_EMAIL },
+                to: [{ email: toEmail }],
+                subject: subject,
+                htmlContent: htmlContent
+            })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            console.log("📧 Email sent successfully to:", toEmail, data);
+            return true;
+        } else {
+            console.error("❌ Brevo API Error:", data);
+            return false;
+        }
+    } catch (err) {
+        console.error("❌ Email Send Failed:", err);
+        return false;
+    }
+}
 
 // --- BỘ NHỚ TRUNG TÂM (Lưu trạng thái thực tế) ---
 let gardenState = {
@@ -38,7 +70,6 @@ setInterval(() => {
         gardenState.isPumpOn = false; // Ngắt điện máy bơm an toàn khi rớt mạng
         console.log("❌ [ESP32] ĐÃ MẤT KẾT NỐI PHẦN CỨNG HOẶC MẤT ĐIỆN!");
         
-        // Đẩy trạng thái offline tới web ngay lập tức
         broadcastState();
     }
 }, 2000);
@@ -62,7 +93,6 @@ app.post("/api/esp-sync", (req, res) => {
         }
     }
 
-    // Nếu đang bật Auto -> Server tự ra quyết định bơm
     if (gardenState.mode === 'auto' && !gardenState.isOffline) {
         const previousPumpState = gardenState.isPumpOn;
         if (gardenState.moisture < 30) gardenState.isPumpOn = true;
@@ -71,7 +101,6 @@ app.post("/api/esp-sync", (req, res) => {
         if (previousPumpState !== gardenState.isPumpOn) stateChanged = true;
     }
 
-    // Nếu có sự thay đổi dữ liệu, đẩy realtime ngay lập tức
     if (stateChanged) {
         broadcastState();
     }
@@ -83,13 +112,11 @@ app.post("/api/esp-sync", (req, res) => {
 // API DÀNH CHO GIAO DIỆN WEB ĐIỀU KHIỂN
 // =========================================================
 
-// Endpoint SSE truyền dữ liệu realtime liên tục xuống Frontend
 app.get("/api/web-events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Gửi dữ liệu hiện tại ngay khi client vừa mở web
     res.write(`data: ${JSON.stringify(gardenState)}\n\n`);
 
     const clientId = Date.now();
@@ -101,7 +128,6 @@ app.get("/api/web-events", (req, res) => {
     });
 });
 
-// Endpoint fallback dành cho truyền thống (Polling)
 app.get("/api/web-sync", (req, res) => {
     res.json(gardenState);
 });
@@ -116,19 +142,15 @@ app.post("/api/web-control", (req, res) => {
             else if (gardenState.moisture >= 85) gardenState.isPumpOn = false;
         }
     } 
-    // ÉP hệ thống sang Manual khi người dùng thao tác bấm nút
     else if (command === 'pump' && !gardenState.isOffline) {
         gardenState.mode = 'manual'; 
         gardenState.isPumpOn = value;
     }
 
-    // Đẩy trạng thái mới qua SSE
     broadcastState();
-    
     res.json({ success: true, state: gardenState });
 });
 
-// --- PHÁT FILE HTML TỰ ĐỘNG ---
 app.get("/", (req, res) => {
     const files = fs.readdirSync(__dirname);
     const htmlFile = files.find(file => file.toLowerCase().endsWith(".html"));
@@ -138,56 +160,48 @@ app.get("/", (req, res) => {
 app.use(express.static(__dirname));
 
 // =========================================================
-// GỬI EMAIL BÁO ĐỘNG VIA RESEND API
+// GỬI EMAIL BÁO ĐỘNG VIA BREVO (TO sanglt3989@gmail.com)
 // =========================================================
 app.post("/sensor-error", async (req, res) => {
     const { sensor, message } = req.body;
 
-    try {
-        const data = await resend.emails.send({
-            from: 'Smart Garden <onboarding@resend.dev>',
-            to: ['sanglt3989@gmail.com'],
-            subject: `⚠️ LỖI PHẦN CỨNG: ${sensor || 'Không xác định'}`,
-            html: `
-                <div style="border: 2px solid #ff9800; padding: 20px;">
-                    <h2 style="color: #ff9800;">⚠️ CẢNH BÁO LỖI THIẾT BỊ</h2>
-                    <p><b>Vị trí lỗi:</b> ${sensor}</p>
-                    <p><b>Chi tiết:</b> <span style="color: #d32f2f;">${message}</span></p>
-                </div>
-            `
-        });
+    const htmlContent = `
+        <div style="border: 2px solid #ff9800; padding: 20px;">
+            <h2 style="color: #ff9800;">⚠️ CẢNH BÁO LỖI THIẾT BỊ</h2>
+            <p><b>Vị trí lỗi:</b> ${sensor || 'Không xác định'}</p>
+            <p><b>Chi tiết:</b> <span style="color: #d32f2f;">${message}</span></p>
+        </div>
+    `;
 
-        console.log("📧 Email sensor error sent successfully:", data);
-        res.status(200).send("OK");
-    } catch (err) {
-        console.error("❌ Resend error:", err);
-        res.status(500).json({ error: "Failed to send email", details: err.message });
-    }
+    const success = await sendEmailAlert(
+        RECIPIENT_EMAIL, 
+        `⚠️ LỖI PHẦN CỨNG: ${sensor || 'Không xác định'}`, 
+        htmlContent
+    );
+
+    if (success) res.status(200).send("OK");
+    else res.status(500).json({ error: "Failed to send email" });
 });
 
 app.post("/system-alarm", async (req, res) => {
     const { issueType, message } = req.body;
 
-    try {
-        const data = await resend.emails.send({
-            from: 'Smart Garden <onboarding@resend.dev>',
-            to: ['sanglt3989@gmail.com'],
-            subject: "🚨 BÁO ĐỘNG KHẨN CẤP: KHU VƯỜN THIẾU NƯỚC",
-            html: `
-                <div style="border: 2px solid #f44336; padding: 20px;">
-                    <h2 style="color: #f44336;">🚨 BÁO ĐỘNG HỆ THỐNG</h2>
-                    <p><b>Phân loại:</b> ${issueType}</p>
-                    <p><b>Tình trạng:</b> <span style="color: #d32f2f; font-weight: bold;">${message}</span></p>
-                </div>
-            `
-        });
+    const htmlContent = `
+        <div style="border: 2px solid #f44336; padding: 20px;">
+            <h2 style="color: #f44336;">🚨 BÁO ĐỘNG KHẨN CẤP</h2>
+            <p><b>Phân loại:</b> ${issueType}</p>
+            <p><b>Tình trạng:</b> <span style="color: #d32f2f; font-weight: bold;">${message}</span></p>
+        </div>
+    `;
 
-        console.log("📧 Alarm email sent successfully:", data);
-        res.status(200).send("OK");
-    } catch (err) {
-        console.error("❌ Resend error:", err);
-        res.status(500).json({ error: "Failed to send email", details: err.message });
-    }
+    const success = await sendEmailAlert(
+        RECIPIENT_EMAIL, 
+        "🚨 BÁO ĐỘNG KHẨN CẤP: KHU VƯỜN THIẾU NƯỚC", 
+        htmlContent
+    );
+
+    if (success) res.status(200).send("OK");
+    else res.status(500).json({ error: "Failed to send email" });
 });
 
 // LẮNG NGHE PORT ĐỘNG CHO CLOUD RENDER
