@@ -59,7 +59,16 @@
        
         .display-hardware-card { grid-column: span 1; background-color: #1f2937; color: #fff; }
         .lcd-case { background-color: #0d1b2a; border: 6px solid #415a77; border-radius: 10px; padding: 12px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); margin-bottom: 15px; }
-        .lcd-screen { background-color: #0077b6; color: #e0f1f9; font-family: 'Courier New', Courier, monospace; font-weight: bold; font-size: 1.25rem; letter-spacing: 2px; padding: 8px; border-radius: 4px; box-shadow: inset 0 0 12px rgba(0,0,0,0.5); line-height: 1.4; text-transform: uppercase; }
+        .lcd-screen { background-color: #8cc34a; 
+                     color: #1a1a1a; 
+                     font-family: 'Courier New', Courier, monospace; 
+                     font-weight: bold; font-size: 1.25rem; 
+                     letter-spacing: 2px; 
+                     padding: 8px; 
+                     border-radius: 4px; 
+                     box-shadow: inset 0 0 12px rgba(0,0,0,0.5); 
+                     line-height: 1.4; 
+                     text-transform: uppercase; }
         .lcd-line { white-space: pre; min-height: 1.4rem; }
         .led-case { display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #111827; padding: 15px; border-radius: 12px; border: 1px solid #374151; }
         .led-diode { width: 40px; height: 40px; border-radius: 50%; background-color: #374151; margin-bottom: 10px; transition: all 0.4s ease; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
@@ -302,8 +311,8 @@
             }
 
             if (lastState.isOffline !== isOffline || lastState.moisture !== moisture || lastState.activeMode !== activeMode || lastState.isPumpOn !== isPumpOn) {
-                document.getElementById("lcd-row-1").innerText = isOffline ? "STATUS: OFFLINE!" : ("SOIL MOIST: " + moisture + "%");
-                document.getElementById("lcd-row-2").innerText = "MODE: " + activeMode.toUpperCase() + (isPumpOn ? " - ON " : " - OFF");
+                ddocument.getElementById("lcd-row-1").innerText = isOffline ? "LOI: MAT KET NOI" : ("DO AM DAT: " + moisture + "%");
+                document.getElementById("lcd-row-2").innerText = "CHE DO: " + (activeMode === 'auto' ? "TUDONG" : "THUCONG") + (isPumpOn ? " - BOM:MO" : " - BOM:TAT");
 
                 const ledDiode = document.getElementById("hardware-led-rgb");
                 const ledText = document.getElementById("hardware-led-text");
