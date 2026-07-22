@@ -8,7 +8,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- NTFY CONFIGURATION ---
-// Replace this topic with the unique name you subscribed to in your Ntfy app:
+// Replace this with the unique topic name you subscribed to in the Ntfy app:
 const NTFY_TOPIC = "smart-garden-sang-alert-2026"; 
 
 async function sendNtfyAlert(title, message, priority = "high") {
@@ -17,8 +17,8 @@ async function sendNtfyAlert(title, message, priority = "high") {
             method: "POST",
             headers: {
                 "Title": title,
-                "Priority": priority, // priority levels: max, high, default, low, min
-                "Tags": "warning,warning"
+                "Priority": priority, // Priority levels: max, high, default, low, min
+                "Tags": "warning"
             },
             body: message
         });
