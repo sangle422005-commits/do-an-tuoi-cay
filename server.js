@@ -7,36 +7,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- NTFY CONFIGURATION ---
-// Replace this with the unique topic name you subscribed to in the Ntfy app:
-const NTFY_TOPIC = "smart-garden-sang-alert-2026"; 
-
-async function sendNtfyAlert(title, message, priority = "high") {
-    try {
-        const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
-            method: "POST",
-            headers: {
-                "Title": title,
-                "Priority": priority, // Priority levels: max, high, default, low, min
-                "Tags": "warning"
-            },
-            body: message
-        });
-
-        if (response.ok) {
-            console.log("📱 Ntfy alert sent successfully!");
-            return true;
-        } else {
-            console.error("❌ Ntfy API Error:", response.statusText);
-            return false;
-        }
-    } catch (err) {
-        console.error("❌ Ntfy Request Failed:", err);
-        return false;
-    }
-}
-
-// --- BỘ NHỚ TRUNG TÂM (Lưu trạng thái thực tế) ---
+// --- CENTRAL STATE MEMORY ---
 let gardenState = {
     moisture: null,      
     isPumpOn: false,    
@@ -45,7 +16,7 @@ let gardenState = {
     lastPingTime: 0
 };
 
-// --- QUẢN LÝ KẾT NỐI REALTIME (SSE) ---
+// --- REALTIME SSE CONNECTION MANAGER ---
 let sseClients = [];
 
 function broadcastState() {
@@ -54,21 +25,20 @@ function broadcastState() {
     });
 }
 
-// --- NHỊP TIM: TỰ ĐỘNG PHÁT HIỆN MẤT MẠNG/RÚT ĐIỆN ESP32 ---
+// --- HEARTBEAT: AUTOMATICALLY DETECT ESP32 DISCONNECT / POWER LOSS ---
 setInterval(() => {
     if (!gardenState.isOffline && (Date.now() - gardenState.lastPingTime > 8000)) {
         gardenState.isOffline = true;
         gardenState.moisture = null;  
-        gardenState.isPumpOn = false; // Ngắt điện máy bơm an toàn khi rớt mạng
-        console.log("❌ [ESP32] ĐÃ MẤT KẾT NỐI PHẦN CỨNG HOẶC MẤT ĐIỆN!");
+        gardenState.isPumpOn = false; // Safety cutoff when offline
+        console.log("❌ [ESP32] HARDWARE CONNECTION LOST OR POWER OFF!");
         
-        sendNtfyAlert("❌ ESP32 Mất Kết Nối", "Mất tín hiệu kết nối phần cứng hoặc rớt điện!", "max");
         broadcastState();
     }
 }, 2000);
 
 // =========================================================
-// API DÀNH CHO MẠCH ESP32
+// API FOR ESP32 HARDWARE
 // =========================================================
 app.post("/api/esp-sync", (req, res) => {
     const { moisture } = req.body;
@@ -80,7 +50,7 @@ app.post("/api/esp-sync", (req, res) => {
         gardenState.lastPingTime = Date.now(); 
         
         if (gardenState.isOffline) {
-            console.log("✅ [ESP32] ĐÃ KẾT NỐI TRỞ LẠI!");
+            console.log("✅ [ESP32] RECONNECTED!");
             gardenState.isOffline = false;
             stateChanged = true;
         }
@@ -102,13 +72,14 @@ app.post("/api/esp-sync", (req, res) => {
 });
 
 // =========================================================
-// API DÀNH CHO GIAO DIỆN WEB ĐIỀU KHIỂN
+// API FOR WEB & MOBILE DASHBOARD
 // =========================================================
 app.get("/api/web-events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
+    // Send current state on initial connection
     res.write(`data: ${JSON.stringify(gardenState)}\n\n`);
 
     const clientId = Date.now();
@@ -151,35 +122,8 @@ app.get("/", (req, res) => {
 });
 app.use(express.static(__dirname));
 
-// =========================================================
-// ALERT ENDPOINTS
-// =========================================================
-app.post("/sensor-error", async (req, res) => {
-    const { sensor, message } = req.body;
-    const ok = await sendNtfyAlert(
-        `⚠️ CẢNH BÁO LỖI: ${sensor || 'Cảm biến'}`,
-        message || 'Gặp sự cố phần cứng!',
-        "high"
-    );
-
-    if (ok) res.status(200).send("OK");
-    else res.status(500).json({ error: "Failed to send notification" });
-});
-
-app.post("/system-alarm", async (req, res) => {
-    const { issueType, message } = req.body;
-    const ok = await sendNtfyAlert(
-        `🚨 BÁO ĐỘNG: ${issueType || 'Khu Vườn'}`,
-        message || 'Đất quá khô, cần kiểm tra gấp!',
-        "max"
-    );
-
-    if (ok) res.status(200).send("OK");
-    else res.status(500).json({ error: "Failed to send notification" });
-});
-
-// LẮNG NGHE PORT ĐỘNG CHO CLOUD RENDER
+// LISTEN ON DYNAMIC PORT FOR RENDER CLOUD
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`🚀 Server đang chạy tại Port: ${PORT}`);
+    console.log(`🚀 Server running on Port: ${PORT}`);
 });
