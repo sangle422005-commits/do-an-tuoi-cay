@@ -116,8 +116,8 @@
                 <div class="option-row">
                     <span>Chế độ điều khiển:</span>
                     <div class="mode-selector">
-                        <button id="mode-auto" class="mode-btn" onclick="setMode('auto')">Auto</button>
-                        <button id="mode-manual" class="mode-btn active" onclick="setMode('manual')">Manual</button>
+                        <button id="mode-auto" class="mode-btn" onclick="setMode('auto')">TỰ ĐỘNG </button>
+                        <button id="mode-manual" class="mode-btn active" onclick="setMode('manual')">THỦ CÔNG </button>
                     </div>
                 </div>
                 <div class="option-row">
@@ -312,7 +312,7 @@
 
             if (lastState.isOffline !== isOffline || lastState.moisture !== moisture || lastState.activeMode !== activeMode || lastState.isPumpOn !== isPumpOn) {
                 document.getElementById("lcd-row-1").innerText = isOffline ? "LOI: MAT KET NOI" : ("DO AM DAT: " + moisture + "%");
-                document.getElementById("lcd-row-2").innerText = "BOM: " + activeMode.toUpperCase() + (isPumpOn ? " - MO " : " - TAT");
+                document.getElementById("lcd-row-2").innerText = "BOM: " + (isPumpOn ? " - MO " : " - TAT");
 
                 const ledDiode = document.getElementById("hardware-led-rgb");
                 const ledText = document.getElementById("hardware-led-text");
