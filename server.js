@@ -7,39 +7,31 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- BREVO CONFIGURATION ---
-const BREVO_API_KEY = "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";
-const SENDER_EMAIL = "sangle422005@gmail.com"; // Verified Brevo Sender
-const RECIPIENT_EMAIL = "sanglt3989@gmail.com";
+// --- NTFY CONFIGURATION ---
+// Replace this topic with the unique name you subscribed to in your Ntfy app:
+const NTFY_TOPIC = "smart-garden-sang-alert-2026"; 
 
-// Helper function to send email via Brevo REST API
-async function sendEmailAlert(toEmail, subject, htmlContent) {
+async function sendNtfyAlert(title, message, priority = "high") {
     try {
-        const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        const response = await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
             method: "POST",
             headers: {
-                "accept": "application/json",
-                "api-key": BREVO_API_KEY,
-                "content-type": "application/json"
+                "Title": title,
+                "Priority": priority, // priority levels: max, high, default, low, min
+                "Tags": "warning,warning"
             },
-            body: JSON.stringify({
-                sender: { name: "Smart Garden Alert", email: SENDER_EMAIL },
-                to: [{ email: toEmail }],
-                subject: subject,
-                htmlContent: htmlContent
-            })
+            body: message
         });
 
-        const data = await response.json();
         if (response.ok) {
-            console.log("📧 Email sent successfully to:", toEmail, data);
+            console.log("📱 Ntfy alert sent successfully!");
             return true;
         } else {
-            console.error("❌ Brevo API Error:", data);
+            console.error("❌ Ntfy API Error:", response.statusText);
             return false;
         }
     } catch (err) {
-        console.error("❌ Email Send Failed:", err);
+        console.error("❌ Ntfy Request Failed:", err);
         return false;
     }
 }
@@ -70,6 +62,7 @@ setInterval(() => {
         gardenState.isPumpOn = false; // Ngắt điện máy bơm an toàn khi rớt mạng
         console.log("❌ [ESP32] ĐÃ MẤT KẾT NỐI PHẦN CỨNG HOẶC MẤT ĐIỆN!");
         
+        sendNtfyAlert("❌ ESP32 Mất Kết Nối", "Mất tín hiệu kết nối phần cứng hoặc rớt điện!", "max");
         broadcastState();
     }
 }, 2000);
@@ -111,7 +104,6 @@ app.post("/api/esp-sync", (req, res) => {
 // =========================================================
 // API DÀNH CHO GIAO DIỆN WEB ĐIỀU KHIỂN
 // =========================================================
-
 app.get("/api/web-events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
@@ -160,48 +152,30 @@ app.get("/", (req, res) => {
 app.use(express.static(__dirname));
 
 // =========================================================
-// GỬI EMAIL BÁO ĐỘNG VIA BREVO (TO sanglt3989@gmail.com)
+// ALERT ENDPOINTS
 // =========================================================
 app.post("/sensor-error", async (req, res) => {
     const { sensor, message } = req.body;
-
-    const htmlContent = `
-        <div style="border: 2px solid #ff9800; padding: 20px;">
-            <h2 style="color: #ff9800;">⚠️ CẢNH BÁO LỖI THIẾT BỊ</h2>
-            <p><b>Vị trí lỗi:</b> ${sensor || 'Không xác định'}</p>
-            <p><b>Chi tiết:</b> <span style="color: #d32f2f;">${message}</span></p>
-        </div>
-    `;
-
-    const success = await sendEmailAlert(
-        RECIPIENT_EMAIL, 
-        `⚠️ LỖI PHẦN CỨNG: ${sensor || 'Không xác định'}`, 
-        htmlContent
+    const ok = await sendNtfyAlert(
+        `⚠️ CẢNH BÁO LỖI: ${sensor || 'Cảm biến'}`,
+        message || 'Gặp sự cố phần cứng!',
+        "high"
     );
 
-    if (success) res.status(200).send("OK");
-    else res.status(500).json({ error: "Failed to send email" });
+    if (ok) res.status(200).send("OK");
+    else res.status(500).json({ error: "Failed to send notification" });
 });
 
 app.post("/system-alarm", async (req, res) => {
     const { issueType, message } = req.body;
-
-    const htmlContent = `
-        <div style="border: 2px solid #f44336; padding: 20px;">
-            <h2 style="color: #f44336;">🚨 BÁO ĐỘNG KHẨN CẤP</h2>
-            <p><b>Phân loại:</b> ${issueType}</p>
-            <p><b>Tình trạng:</b> <span style="color: #d32f2f; font-weight: bold;">${message}</span></p>
-        </div>
-    `;
-
-    const success = await sendEmailAlert(
-        RECIPIENT_EMAIL, 
-        "🚨 BÁO ĐỘNG KHẨN CẤP: KHU VƯỜN THIẾU NƯỚC", 
-        htmlContent
+    const ok = await sendNtfyAlert(
+        `🚨 BÁO ĐỘNG: ${issueType || 'Khu Vườn'}`,
+        message || 'Đất quá khô, cần kiểm tra gấp!',
+        "max"
     );
 
-    if (success) res.status(200).send("OK");
-    else res.status(500).json({ error: "Failed to send email" });
+    if (ok) res.status(200).send("OK");
+    else res.status(500).json({ error: "Failed to send notification" });
 });
 
 // LẮNG NGHE PORT ĐỘNG CHO CLOUD RENDER
