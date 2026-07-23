@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- PWA & PWABuilder App Configuration -->
     <title>Hệ Thống Tưới Tiêu & Quản Lý Phần Cứng Cảm Biến</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/png" href="/icon.png">
@@ -49,7 +48,6 @@
         
         .camera-card { grid-column: span 2; }
         .camera-screen { width: 100%; height: 230px; background-color: #111; border-radius: 12px; position: relative; overflow: hidden; border: 3px solid #1e3d59; }
-        .garden-bg { width: 100%; height: 100%; background-size: cover; background-position: center; transition: background-image 0.5s ease; }
         .cam-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; font-family: monospace; font-size: 0.85rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
         .live-badge { background-color: rgba(255, 0, 0, 0.8); padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; animation: blink 1s infinite alternate; }
         
@@ -115,7 +113,6 @@
 
     <div class="container">
         
-        <!-- CARD BƠM -->
         <div class="card pump-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle" style="background-color: #e8f5e9; color: #2e7d32;"><i class="fa-solid fa-faucet-drip"></i></div>
@@ -142,7 +139,6 @@
             </div>
         </div>
 
-        <!-- CARD MÔ PHỎNG LCD & LED -->
         <div class="card display-hardware-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle" style="background-color: #374151; color: #60a5fa;"><i class="fa-solid fa-desktop"></i></div>
@@ -160,7 +156,6 @@
             </div>
         </div>
 
-        <!-- CARD ĐỘ ẨM ĐẤT TỪ ESP32 -->
         <div class="card soil-card">
             <div>
                 <div class="card-header-simple">
@@ -172,7 +167,6 @@
             </div>
         </div>
         
-        <!-- CARD NHIỆT ĐỘ KHÍ -->
         <div class="card temp-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle"><i class="fa-solid fa-temperature-half"></i></div>
@@ -182,7 +176,6 @@
             <p style="color: #888; font-size: 0.85rem; text-align: center;">Cập nhật từ Open-Meteo API</p>
         </div>
 
-        <!-- CARD ĐỘ ẨM KHÍ -->
         <div class="card hum-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle"><i class="fa-solid fa-water"></i></div>
@@ -192,7 +185,6 @@
             <p style="color: #888; font-size: 0.85rem; text-align: center;">Cập nhật từ Open-Meteo API</p>
         </div>
 
-        <!-- CARD THỜI TIẾT TỪ VỆ TINH -->
         <div class="card weather-card" id="weather-main-card" onclick="toggleWeatherAccordion()">
             <div class="click-indicator" id="weather-click-indicator-text">Xem thêm <i class="fa-solid fa-chevron-down"></i></div>
             <div>
@@ -223,14 +215,14 @@
             </div>
         </div>
 
-        <!-- CARD CAMERA -->
         <div class="card camera-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle" style="background-color: #eaeaff; color: #5c5fc8;"><i class="fa-solid fa-video"></i></div>
                 <div class="card-title-text">CCTV Camera Giám Sát (Live)</div>
             </div>
             <div class="camera-screen">
-                <div id="garden-view" class="garden-bg" style="background-image: url('https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80');"></div>
+                <img src="https://smart-garden-cam-taibao99.loca.lt/stream" alt="Live Camera" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+                
                 <div class="cam-overlay">
                     <div class="cam-top">
                         <div class="live-badge"><span>●</span> REC</div>
@@ -239,7 +231,6 @@
             </div>
         </div>
 
-        <!-- CARD BÁO ĐỘNG -->
         <div class="card alarm-card" id="alarm-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle"><i class="fa-solid fa-triangle-exclamation"></i></div>
@@ -248,7 +239,6 @@
             <div class="card-value" id="alarm-status" style="font-size: 1.4rem;">Đang tải...</div>
         </div>
 
-        <!-- BẢNG THEO DÕI CẢM BIẾN -->
         <div class="card hardware-card">
             <div>
                 <div class="card-header-simple">
