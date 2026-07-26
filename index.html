@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     
-    <!-- PWA & PWABuilder App Configuration -->
     <title>Hệ Thống Tưới Tiêu & Quản Lý Phần Cứng Cảm Biến</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" type="image/png" href="/icon.png">
@@ -48,10 +47,8 @@
         .weather-card.expanded .weather-expanded-details { max-height: 250px; opacity: 1; margin-top: 15px; border-top: 1px dashed #ffe082; padding-top: 10px; }
         
         .camera-card { grid-column: span 2; }
-        .camera-screen { width: 100%; height: 230px; background-color: #111; border-radius: 12px; position: relative; overflow: hidden; border: 3px solid #1e3d59; }
-        .garden-bg { width: 100%; height: 100%; background-size: cover; background-position: center; transition: background-image 0.5s ease; }
-        .cam-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; padding: 12px; display: flex; flex-direction: column; justify-content: space-between; color: #fff; font-family: monospace; font-size: 0.85rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
-        .live-badge { background-color: rgba(255, 0, 0, 0.8); padding: 4px 8px; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px; animation: blink 1s infinite alternate; }
+        .camera-screen { width: 100%; height: 250px; background-color: #111; border-radius: 12px; position: relative; overflow: hidden; border: 3px solid #1e3d59; display: flex; align-items: center; justify-content: center; }
+        .cam-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; padding: 12px; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #fff; font-family: monospace; font-size: 0.85rem; text-shadow: 1px 1px 3px rgba(0,0,0,0.8); }
         
         .pump-options { display: flex; flex-direction: column; gap: 10px; margin-top: 5px; }
         .option-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px dashed #eee; }
@@ -115,7 +112,6 @@
 
     <div class="container">
         
-        <!-- CARD BƠM -->
         <div class="card pump-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle" style="background-color: #e8f5e9; color: #2e7d32;"><i class="fa-solid fa-faucet-drip"></i></div>
@@ -142,7 +138,6 @@
             </div>
         </div>
 
-        <!-- CARD MÔ PHỎNG LCD & LED -->
         <div class="card display-hardware-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle" style="background-color: #374151; color: #60a5fa;"><i class="fa-solid fa-desktop"></i></div>
@@ -160,7 +155,6 @@
             </div>
         </div>
 
-        <!-- CARD ĐỘ ẨM ĐẤT TỪ ESP32 -->
         <div class="card soil-card">
             <div>
                 <div class="card-header-simple">
@@ -172,7 +166,6 @@
             </div>
         </div>
         
-        <!-- CARD NHIỆT ĐỘ KHÍ -->
         <div class="card temp-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle"><i class="fa-solid fa-temperature-half"></i></div>
@@ -182,7 +175,6 @@
             <p style="color: #888; font-size: 0.85rem; text-align: center;">Cập nhật từ Open-Meteo API</p>
         </div>
 
-        <!-- CARD ĐỘ ẨM KHÍ -->
         <div class="card hum-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle"><i class="fa-solid fa-water"></i></div>
@@ -192,7 +184,6 @@
             <p style="color: #888; font-size: 0.85rem; text-align: center;">Cập nhật từ Open-Meteo API</p>
         </div>
 
-        <!-- CARD THỜI TIẾT TỪ VỆ TINH -->
         <div class="card weather-card" id="weather-main-card" onclick="toggleWeatherAccordion()">
             <div class="click-indicator" id="weather-click-indicator-text">Xem thêm <i class="fa-solid fa-chevron-down"></i></div>
             <div>
@@ -223,23 +214,30 @@
             </div>
         </div>
 
-        <!-- CARD CAMERA -->
         <div class="card camera-card">
-            <div class="card-header-simple">
-                <div class="card-icon-circle" style="background-color: #eaeaff; color: #5c5fc8;"><i class="fa-solid fa-video"></i></div>
-                <div class="card-title-text">CCTV Camera Giám Sát (Live)</div>
+            <div class="card-header-simple" style="justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div class="card-icon-circle" style="background-color: #eaeaff; color: #5c5fc8;"><i class="fa-solid fa-video"></i></div>
+                    <div class="card-title-text">CCTV Camera Giám Sát (Live)</div>
+                </div>
+                <div id="cam-status-badge" style="padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; background: #fff5f5; color: #e53e3e; border: 1px solid #feb2b2;">
+                    <span id="cam-status-text">OFFLINE</span>
+                </div>
             </div>
             <div class="camera-screen">
-                <div id="garden-view" class="garden-bg" style="background-image: url('https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80');"></div>
-                <div class="cam-overlay">
-                    <div class="cam-top">
-                        <div class="live-badge"><span>●</span> REC</div>
-                    </div>
+                <img id="camera-stream" src="http://localhost:5000/stream" alt="Camera Live Stream" style="width: 100%; height: 100%; object-fit: contain; display: block;" onload="onCamSuccess()" onerror="onCamError()" />
+                <div id="camera-offline-msg" class="cam-overlay" style="display: none; background: rgba(0,0,0,0.85); text-align: center;">
+                    <i class="fa-solid fa-video-slash fa-2x" style="color: #e53e3e; margin-bottom: 8px;"></i>
+                    <div style="font-size: 1rem; font-weight: bold;">Camera Server Offline</div>
+                    <small style="color: #a0aec0; font-size: 0.8rem; margin-top: 4px;">Hãy bật file python camera_server.py trên máy tính</small>
                 </div>
+            </div>
+            <div style="display: flex; gap: 8px; margin-top: 12px;">
+                <input type="text" id="cam-url-input" value="http://localhost:5000/stream" placeholder="http://localhost:5000/stream" style="flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e0; font-size: 0.85rem; outline: none;">
+                <button onclick="updateCameraStreamUrl()" style="padding: 8px 16px; background: #1e3d59; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: bold;">Kết nối</button>
             </div>
         </div>
 
-        <!-- CARD BÁO ĐỘNG -->
         <div class="card alarm-card" id="alarm-card">
             <div class="card-header-simple">
                 <div class="card-icon-circle"><i class="fa-solid fa-triangle-exclamation"></i></div>
@@ -248,7 +246,6 @@
             <div class="card-value" id="alarm-status" style="font-size: 1.4rem;">Đang tải...</div>
         </div>
 
-        <!-- BẢNG THEO DÕI CẢM BIẾN -->
         <div class="card hardware-card">
             <div>
                 <div class="card-header-simple">
@@ -284,7 +281,6 @@
 
         let lastPhoneAlertTime = 0;
         function sendPhoneAlert(title, body) {
-            // Cooldown prevents spamming notifications faster than once every 30 seconds
             const now = Date.now();
             if (now - lastPhoneAlertTime < 30000) return;
 
@@ -298,7 +294,7 @@
         }
 
         let isAlarmEmailSent = false;
-        let lastState = {}; // Optimization: Cache state to prevent redundant DOM updates
+        let lastState = {};
 
         // =========================================================
         // 1. UPDATE UI FUNCTION (State Diffing)
@@ -311,14 +307,12 @@
             let isPumpOn = data.isPumpOn;
             let activeMode = data.mode;
 
-            // Trigger Phone Notifications when alarms happen
             if (isOffline && lastState.isOffline === false) {
                 sendPhoneAlert("❌ MẤT KẾT NỐI ESP32", "Thiết bị tưới cây đã mất tín hiệu hoặc bị ngắt điện!");
             } else if (!isOffline && moisture !== null && moisture < 30 && (lastState.moisture === null || lastState.moisture >= 30)) {
                 sendPhoneAlert("🚨 CẢNH BÁO ĐẤT KHÔ", `Độ ẩm đất hiện tại chỉ còn ${moisture}%! Cần kiểm tra tưới nước.`);
             }
 
-            // Only update DOM if the specific state value changed
             if (lastState.isPumpOn !== isPumpOn || lastState.activeMode !== activeMode || lastState.isOffline !== isOffline) {
                 const pumpToggle = document.getElementById("pump-toggle");
                 pumpToggle.checked = isPumpOn;
@@ -378,7 +372,6 @@
                     : `<span class="badge badge-success"><i class="fa-solid fa-circle-check"></i> Đang hoạt động</span>`;
             }
 
-            // Alarm updates
             const alarmCard = document.getElementById("alarm-card");
             const alarmStatus = document.getElementById("alarm-status");
             
@@ -421,7 +414,6 @@
 
                 eventSource.onerror = function() {
                     eventSource.close();
-                    // Fallback to polling if SSE endpoint isn't supported by backend yet
                     if (!fallbackTimer) {
                         fallbackTimer = setInterval(pollFallback, 3000);
                     }
@@ -445,13 +437,11 @@
         // 3. OPTIMIZED CONTROL COMMANDS
         // =========================================================
         async function setMode(mode) {
-            // Optimistic update
             updateUI({ ...lastState, mode: mode });
             await fetch("/api/web-control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: 'mode', value: mode }) });
         }
 
         async function togglePump(checkbox) {
-            // Optimistic update
             updateUI({ ...lastState, isPumpOn: checkbox.checked });
             await fetch("/api/web-control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: 'pump', value: checkbox.checked }) });
         }
@@ -508,6 +498,76 @@
         
         fetchRealWeather();
         setInterval(fetchRealWeather, 900000);
+
+        // =========================================================
+        // 5. LIVE CAMERA STREAM CONTROLLER (320x240 RGB @ 500kbps)
+        // =========================================================
+        const savedCamUrl = localStorage.getItem("cam_feed_url") || "http://localhost:5000/stream";
+
+        function reloadCamFeed() {
+            const img = document.getElementById("camera-stream");
+            const offlineMsg = document.getElementById("camera-offline-msg");
+            const urlInput = document.getElementById("cam-url-input");
+            
+            const targetUrl = urlInput ? urlInput.value.trim() : savedCamUrl;
+
+            if (img && targetUrl) {
+                img.style.display = "block";
+                if (offlineMsg) offlineMsg.style.display = "none";
+                img.src = targetUrl + (targetUrl.includes("?") ? "&" : "?") + "t=" + new Date().getTime();
+            }
+        }
+
+        function updateCameraStreamUrl() {
+            const urlInput = document.getElementById("cam-url-input");
+            if (urlInput) {
+                const url = urlInput.value.trim();
+                localStorage.setItem("cam_feed_url", url);
+                reloadCamFeed();
+            }
+        }
+
+        function onCamSuccess() {
+            const img = document.getElementById("camera-stream");
+            const offlineMsg = document.getElementById("camera-offline-msg");
+            const badge = document.getElementById("cam-status-badge");
+            const statusText = document.getElementById("cam-status-text");
+
+            if (img) img.style.display = "block";
+            if (offlineMsg) offlineMsg.style.display = "none";
+            
+            if (badge) {
+                badge.style.background = "#e6fffa";
+                badge.style.color = "#047857";
+                badge.style.border = "1px solid #34d399";
+            }
+            if (statusText) statusText.innerText = "LIVE 🔴";
+        }
+
+        function onCamError() {
+            const img = document.getElementById("camera-stream");
+            const offlineMsg = document.getElementById("camera-offline-msg");
+            const badge = document.getElementById("cam-status-badge");
+            const statusText = document.getElementById("cam-status-text");
+
+            if (img) img.style.display = "none";
+            if (offlineMsg) offlineMsg.style.display = "flex";
+            
+            if (badge) {
+                badge.style.background = "#fff5f5";
+                badge.style.color = "#e53e3e";
+                badge.style.border = "1px solid #feb2b2";
+            }
+            if (statusText) statusText.innerText = "OFFLINE";
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const urlInput = document.getElementById("cam-url-input");
+            if (urlInput) {
+                urlInput.value = savedCamUrl;
+            }
+            reloadCamFeed();
+        });
     </script>
 </body>
 </html>
