@@ -102,7 +102,7 @@ app.post("/api/web-control", (req, res) => {
         gardenState.mode = value; 
         if (value === 'auto' && !gardenState.isOffline && gardenState.moisture !== null) {
             if (gardenState.moisture < 30) gardenState.isPumpOn = true;
-            else if (gardenState.moisture >= 85) gardenState.isPumpOn = false;
+            else if (gardenState.moisture >= 65) gardenState.isPumpOn = false;
         }
     } 
     else if (command === 'pump' && !gardenState.isOffline) {
