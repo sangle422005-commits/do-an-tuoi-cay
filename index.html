@@ -218,14 +218,14 @@
             <div class="card-header-simple" style="justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <div class="card-icon-circle" style="background-color: #eaeaff; color: #5c5fc8;"><i class="fa-solid fa-video"></i></div>
-                    <div class="card-title-text">CCTV Camera Giám Sát (Live)</div>
+                    <div class="card-title-text">CCTV Camera Giám Sát (Chụp ảnh tĩnh)</div>
                 </div>
-                <div id="cam-status-badge" style="padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; background: #fff5f5; color: #e53e3e; border: 1px solid #feb2b2;">
-                    <span id="cam-status-text">OFFLINE</span>
+                <div id="cam-status-badge" style="padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; background: #e6fffa; color: #047857; border: 1px solid #34d399;">
+                    <span id="cam-status-text">SẴN SÀNG 🟢</span>
                 </div>
             </div>
             <div class="camera-screen">
-                <img id="camera-stream" alt="Camera Live Stream" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
+                <img id="camera-stream" alt="Camera Snapshot" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
                 <div id="camera-offline-msg" class="cam-overlay" style="display: none; background: rgba(0,0,0,0.85); text-align: center;">
                     <i class="fa-solid fa-video-slash fa-2x" style="color: #e53e3e; margin-bottom: 8px;"></i>
                     <div style="font-size: 1rem; font-weight: bold;">Camera Server Offline</div>
@@ -234,7 +234,7 @@
             </div>
             <div style="display: flex; gap: 8px; margin-top: 12px;">
                 <input type="text" id="cam-url-input" value="http://localhost:5000/stream" placeholder="http://localhost:5000/stream" style="flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e0; font-size: 0.85rem; outline: none;">
-                <button onclick="updateCameraStreamUrl()" style="padding: 8px 16px; background: #1e3d59; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: bold;">Kết nối</button>
+                <button onclick="captureCameraSnapshot()" style="padding: 8px 20px; background: #17b978; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: bold;"><i class="fa-solid fa-camera"></i> Chụp Ảnh</button>
             </div>
         </div>
 
@@ -500,73 +500,33 @@
         setInterval(fetchRealWeather, 900000);
 
         // =========================================================
-        // 5. AUTO-REFRESH CAMERA STREAM CONTROLLER (Auto Snapshot Polling)
+        // 5. MANUAL SNAPSHOT CAMERA CONTROLLER (Bấm nút để chụp, giải phóng RAM 2KB tuyệt đối)
         // =========================================================
         const defaultCamUrl = "http://localhost:5000/stream";
-        let camInterval = null;
 
-        function startCameraLoop() {
+        function captureCameraSnapshot() {
             const img = document.getElementById("camera-stream");
             const urlInput = document.getElementById("cam-url-input");
+            const offlineMsg = document.getElementById("camera-offline-msg");
             const baseUrl = urlInput ? urlInput.value.trim() : defaultCamUrl;
 
-            if (camInterval) clearInterval(camInterval);
+            if (!img) return;
 
-            // Tự động gọi ảnh mới liên tục mỗi 150 mili-giây (~6-7 fps) không cần F5 thủ công
-            camInterval = setInterval(() => {
-                if (!img) return;
-                const tempImg = new Image();
-                const timestampUrl = baseUrl + (baseUrl.includes("?") ? "&" : "?") + "t=" + Date.now();
-                
-                tempImg.onload = function() {
-                    img.src = timestampUrl;
-                    onCamSuccess();
-                };
-                tempImg.onerror = function() {
-                    onCamError();
-                };
-                tempImg.src = timestampUrl;
-            }, 150);
-        }
+            const tempImg = new Image();
+            const timestampUrl = baseUrl + (baseUrl.includes("?") ? "&" : "?") + "t=" + Date.now();
+            
+            tempImg.onload = function() {
+                img.src = timestampUrl;
+                img.style.display = "block";
+                if (offlineMsg) offlineMsg.style.display = "none";
+            };
+            
+            tempImg.onerror = function() {
+                img.style.display = "none";
+                if (offlineMsg) offlineMsg.style.display = "flex";
+            };
 
-        function updateCameraStreamUrl() {
-            const urlInput = document.getElementById("cam-url-input");
-            if (urlInput) {
-                localStorage.setItem("cam_feed_url", urlInput.value.trim());
-                startCameraLoop();
-            }
-        }
-
-        function onCamSuccess() {
-            const img = document.getElementById("camera-stream");
-            const offlineMsg = document.getElementById("camera-offline-msg");
-            const badge = document.getElementById("cam-status-badge");
-            const statusText = document.getElementById("cam-status-text");
-
-            if (img) img.style.display = "block";
-            if (offlineMsg) offlineMsg.style.display = "none";
-            if (badge) {
-                badge.style.background = "#e6fffa";
-                badge.style.color = "#047857";
-                badge.style.border = "1px solid #34d399";
-            }
-            if (statusText) statusText.innerText = "LIVE 🔴";
-        }
-
-        function onCamError() {
-            const img = document.getElementById("camera-stream");
-            const offlineMsg = document.getElementById("camera-offline-msg");
-            const badge = document.getElementById("cam-status-badge");
-            const statusText = document.getElementById("cam-status-text");
-
-            if (img) img.style.display = "none";
-            if (offlineMsg) offlineMsg.style.display = "flex";
-            if (badge) {
-                badge.style.background = "#fff5f5";
-                badge.style.color = "#e53e3e";
-                badge.style.border = "1px solid #feb2b2";
-            }
-            if (statusText) statusText.innerText = "OFFLINE";
+            tempImg.src = timestampUrl;
         }
 
         document.addEventListener("DOMContentLoaded", () => {
@@ -574,7 +534,8 @@
             const urlInput = document.getElementById("cam-url-input");
             if (urlInput) urlInput.value = savedUrl;
             
-            startCameraLoop();
+            // Chụp 1 kiểu đầu tiên khi vừa vào trang
+            captureCameraSnapshot();
         });
     </script>
 </body>
