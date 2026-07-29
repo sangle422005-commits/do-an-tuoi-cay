@@ -225,7 +225,7 @@
                 </div>
             </div>
             <div class="camera-screen">
-                <img id="camera-stream" src="http://localhost:5000/stream" alt="Camera Live Stream" style="width: 100%; height: 100%; object-fit: contain; display: block;" onload="onCamSuccess()" onerror="onCamError()" />
+                <img id="camera-stream" alt="Camera Live Stream" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
                 <div id="camera-offline-msg" class="cam-overlay" style="display: none; background: rgba(0,0,0,0.85); text-align: center;">
                     <i class="fa-solid fa-video-slash fa-2x" style="color: #e53e3e; margin-bottom: 8px;"></i>
                     <div style="font-size: 1rem; font-weight: bold;">Camera Server Offline</div>
@@ -500,30 +500,40 @@
         setInterval(fetchRealWeather, 900000);
 
         // =========================================================
-        // 5. LIVE CAMERA STREAM CONTROLLER (320x240 RGB @ 500kbps)
+        // 5. AUTO-REFRESH CAMERA STREAM CONTROLLER (Auto Snapshot Polling)
         // =========================================================
-        const savedCamUrl = localStorage.getItem("cam_feed_url") || "http://localhost:5000/stream";
+        const defaultCamUrl = "http://localhost:5000/stream";
+        let camInterval = null;
 
-        function reloadCamFeed() {
+        function startCameraLoop() {
             const img = document.getElementById("camera-stream");
-            const offlineMsg = document.getElementById("camera-offline-msg");
             const urlInput = document.getElementById("cam-url-input");
-            
-            const targetUrl = urlInput ? urlInput.value.trim() : savedCamUrl;
+            const baseUrl = urlInput ? urlInput.value.trim() : defaultCamUrl;
 
-            if (img && targetUrl) {
-                img.style.display = "block";
-                if (offlineMsg) offlineMsg.style.display = "none";
-                img.src = targetUrl + (targetUrl.includes("?") ? "&" : "?") + "t=" + new Date().getTime();
-            }
+            if (camInterval) clearInterval(camInterval);
+
+            // Tự động gọi ảnh mới liên tục mỗi 150 mili-giây (~6-7 fps) không cần F5 thủ công
+            camInterval = setInterval(() => {
+                if (!img) return;
+                const tempImg = new Image();
+                const timestampUrl = baseUrl + (baseUrl.includes("?") ? "&" : "?") + "t=" + Date.now();
+                
+                tempImg.onload = function() {
+                    img.src = timestampUrl;
+                    onCamSuccess();
+                };
+                tempImg.onerror = function() {
+                    onCamError();
+                };
+                tempImg.src = timestampUrl;
+            }, 150);
         }
 
         function updateCameraStreamUrl() {
             const urlInput = document.getElementById("cam-url-input");
             if (urlInput) {
-                const url = urlInput.value.trim();
-                localStorage.setItem("cam_feed_url", url);
-                reloadCamFeed();
+                localStorage.setItem("cam_feed_url", urlInput.value.trim());
+                startCameraLoop();
             }
         }
 
@@ -535,7 +545,6 @@
 
             if (img) img.style.display = "block";
             if (offlineMsg) offlineMsg.style.display = "none";
-            
             if (badge) {
                 badge.style.background = "#e6fffa";
                 badge.style.color = "#047857";
@@ -552,7 +561,6 @@
 
             if (img) img.style.display = "none";
             if (offlineMsg) offlineMsg.style.display = "flex";
-            
             if (badge) {
                 badge.style.background = "#fff5f5";
                 badge.style.color = "#e53e3e";
@@ -562,11 +570,11 @@
         }
 
         document.addEventListener("DOMContentLoaded", () => {
+            const savedUrl = localStorage.getItem("cam_feed_url") || defaultCamUrl;
             const urlInput = document.getElementById("cam-url-input");
-            if (urlInput) {
-                urlInput.value = savedCamUrl;
-            }
-            reloadCamFeed();
+            if (urlInput) urlInput.value = savedUrl;
+            
+            startCameraLoop();
         });
     </script>
 </body>
