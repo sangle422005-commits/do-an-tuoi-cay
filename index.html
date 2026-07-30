@@ -66,15 +66,15 @@
         .display-hardware-card { grid-column: span 1; background-color: #1f2937; color: #fff; }
         .lcd-case { background-color: #0d1b2a; border: 6px solid #415a77; border-radius: 10px; padding: 12px; box-shadow: inset 0 0 10px rgba(0,0,0,0.8); margin-bottom: 15px; }
         .lcd-screen { background-color: #8cc34a; 
-                      color: #1a1a1a; 
-                      font-family: 'Courier New', Courier, monospace; 
-                      font-weight: bold; font-size: 1.25rem; 
-                      letter-spacing: 2px; 
-                      padding: 8px; 
-                      border-radius: 4px; 
-                      box-shadow: inset 0 0 12px rgba(0,0,0,0.5); 
-                      line-height: 1.4; 
-                      text-transform: uppercase; }
+                    color: #1a1a1a; 
+                    font-family: 'Courier New', Courier, monospace; 
+                    font-weight: bold; font-size: 1.25rem; 
+                    letter-spacing: 2px; 
+                    padding: 8px; 
+                    border-radius: 4px; 
+                    box-shadow: inset 0 0 12px rgba(0,0,0,0.5); 
+                    line-height: 1.4; 
+                    text-transform: uppercase; }
         .lcd-line { white-space: pre; min-height: 1.4rem; }
         .led-case { display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #111827; padding: 15px; border-radius: 12px; border: 1px solid #374151; }
         .led-diode { width: 40px; height: 40px; border-radius: 50%; background-color: #374151; margin-bottom: 10px; transition: all 0.4s ease; box-shadow: 0 0 5px rgba(0,0,0,0.5); }
@@ -243,23 +243,24 @@
             <div class="card-header-simple" style="justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 12px;">
                     <div class="card-icon-circle" style="background-color: #eaeaff; color: #5c5fc8;"><i class="fa-solid fa-video"></i></div>
-                    <div class="card-title-text">CCTV Camera Giám Sát (Chụp ảnh tĩnh)</div>
+                    <div class="card-title-text">CCTV Camera Giám Sát Sân Vườn</div>
                 </div>
                 <div id="cam-status-badge" style="padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; background: #e6fffa; color: #047857; border: 1px solid #34d399;">
-                    <span id="cam-status-text">SẴN SÀNG 🟢</span>
+                    <span id="cam-status-text">ONLINE 🟢</span>
                 </div>
             </div>
             <div class="camera-screen">
-                <img id="camera-stream" alt="Camera Snapshot" style="width: 100%; height: 100%; object-fit: contain; display: block;" />
+                <img id="camera-stream" src="/api/camera-snapshot" alt="Garden Live Camera" onerror="this.src='https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=800&q=80'" style="width: 100%; height: 100%; object-fit: cover; display: block;" />
                 <div id="camera-offline-msg" class="cam-overlay" style="display: none; background: rgba(0,0,0,0.85); text-align: center;">
                     <i class="fa-solid fa-video-slash fa-2x" style="color: #e53e3e; margin-bottom: 8px;"></i>
-                    <div style="font-size: 1rem; font-weight: bold;">Camera Server Offline</div>
-                    <small style="color: #a0aec0; font-size: 0.8rem; margin-top: 4px;">Hãy bật file python camera_server.py trên máy tính</small>
+                    <div style="font-size: 1rem; font-weight: bold;">Camera Offline</div>
                 </div>
             </div>
-            <div style="display: flex; gap: 8px; margin-top: 12px;">
-                <input type="text" id="cam-url-input" value="http://localhost:5000/stream" placeholder="http://localhost:5000/stream" style="flex: 1; padding: 8px 12px; border-radius: 8px; border: 1px solid #cbd5e0; font-size: 0.85rem; outline: none;">
-                <button onclick="captureCameraSnapshot()" style="padding: 8px 20px; background: #17b978; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: bold;"><i class="fa-solid fa-camera"></i> Chụp Ảnh</button>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 12px;">
+                <span style="font-size: 0.85rem; color: #666;" id="snapshot-status">Chạm nút để cập nhật hình ảnh mới nhất</span>
+                <button class="btn-capture" onclick="captureCameraSnapshot()" style="padding: 8px 20px; background: #17b978; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 0.85rem; font-weight: bold; display: flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-camera"></i> Chụp Ảnh Mới
+                </button>
             </div>
         </div>
 
@@ -594,39 +595,35 @@
         setInterval(fetchRealWeather, 900000);
 
         // =========================================================
-        // 5. MANUAL SNAPSHOT CAMERA CONTROLLER 
+        // 5. CAMERA SNAPSHOT CONTROLLER (CLOUD SYNCED)
         // =========================================================
-        const defaultCamUrl = "http://localhost:5000/stream";
-
         function captureCameraSnapshot() {
-            const img = document.getElementById("camera-stream");
-            const urlInput = document.getElementById("cam-url-input");
+            const imgElement = document.getElementById("camera-stream");
+            const statusText = document.getElementById("snapshot-status");
             const offlineMsg = document.getElementById("camera-offline-msg");
-            const baseUrl = urlInput ? urlInput.value.trim() : defaultCamUrl;
+            
+            if (statusText) statusText.innerText = "Đang tải ảnh từ server...";
 
-            if (!img) return;
+            const freshImageUrl = "/api/camera-snapshot?t=" + Date.now();
 
             const tempImg = new Image();
-            const timestampUrl = baseUrl + (baseUrl.includes("?") ? "&" : "?") + "t=" + Date.now();
-            
             tempImg.onload = function() {
-                img.src = timestampUrl;
-                img.style.display = "block";
+                imgElement.src = freshImageUrl;
+                imgElement.style.display = "block";
                 if (offlineMsg) offlineMsg.style.display = "none";
+                if (statusText) statusText.innerText = "Đã cập nhật lúc: " + new Date().toLocaleTimeString('vi-VN');
             };
             
             tempImg.onerror = function() {
-                img.style.display = "none";
+                imgElement.style.display = "none";
                 if (offlineMsg) offlineMsg.style.display = "flex";
+                if (statusText) statusText.innerText = "Lỗi tải ảnh camera!";
             };
 
-            tempImg.src = timestampUrl;
+            tempImg.src = freshImageUrl;
         }
 
         document.addEventListener("DOMContentLoaded", () => {
-            const savedUrl = localStorage.getItem("cam_feed_url") || defaultCamUrl;
-            const urlInput = document.getElementById("cam-url-input");
-            if (urlInput) urlInput.value = savedUrl;
             captureCameraSnapshot();
         });
     </script>
