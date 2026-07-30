@@ -10,6 +10,7 @@ app.use(express.json());
 // --- CENTRAL STATE MEMORY ---
 let gardenState = {
     moisture: null,      
+    airHumidity: null,  // THÊM: Lưu trữ độ ẩm không khí từ API thời tiết
     isPumpOn: false,    
     mode: 'manual',     
     isOffline: true,     
@@ -38,6 +39,28 @@ setInterval(() => {
 }, 2000);
 
 // =========================================================
+// API LẤY THÔNG SỐ THỜI TIẾT TỪ FRONTEND ĐỂ ĐIỀU KHIỂN TỰ ĐỘNG
+// =========================================================
+app.post("/api/weather-sync", (req, res) => {
+    const { airHumidity } = req.body;
+    
+    if (airHumidity !== undefined) {
+        gardenState.airHumidity = airHumidity;
+        
+        // Nếu đang ở chế độ AUTO, kiểm tra lại điều kiện ngắt bơm
+        if (gardenState.mode === 'auto' && !gardenState.isOffline && gardenState.isPumpOn) {
+            // Ví dụ: Nếu độ ẩm không khí >= 80%, ngắt bơm ngay lập tức (trời đang rất ẩm/mưa)
+            if (gardenState.airHumidity >= 80) {
+                gardenState.isPumpOn = false;
+                console.log("🌦️ [THỜI TIẾT] Độ ẩm không khí cao, TỰ ĐỘNG TẮT BƠM!");
+                broadcastState();
+            }
+        }
+    }
+    res.json({ success: true });
+});
+
+// =========================================================
 // API FOR ESP32 HARDWARE
 // =========================================================
 app.post("/api/esp-sync", (req, res) => {
@@ -58,8 +81,22 @@ app.post("/api/esp-sync", (req, res) => {
 
     if (gardenState.mode === 'auto' && !gardenState.isOffline) {
         const previousPumpState = gardenState.isPumpOn;
-        if (gardenState.moisture < 30) gardenState.isPumpOn = true;
-        else if (gardenState.moisture >= 85) gardenState.isPumpOn = false;
+        
+        // Logic cơ bản: Đất khô thì bơm, đất ướt thì dừng
+        if (gardenState.moisture < 30) {
+            // Chỉ cho phép bật bơm nếu độ ẩm không khí bình thường (< 80%)
+            if (gardenState.airHumidity === null || gardenState.airHumidity < 80) {
+                gardenState.isPumpOn = true;
+            }
+        } 
+        else if (gardenState.moisture >= 85) {
+            gardenState.isPumpOn = false;
+        }
+        
+        // Ghi đè khẩn cấp: Nếu không khí quá ẩm (>= 80%), ép tắt máy bơm luôn
+        if (gardenState.airHumidity && gardenState.airHumidity >= 80) {
+             gardenState.isPumpOn = false;
+        }
         
         if (previousPumpState !== gardenState.isPumpOn) stateChanged = true;
     }
@@ -101,8 +138,17 @@ app.post("/api/web-control", (req, res) => {
     if (command === 'mode') {
         gardenState.mode = value; 
         if (value === 'auto' && !gardenState.isOffline && gardenState.moisture !== null) {
-            if (gardenState.moisture < 30) gardenState.isPumpOn = true;
+            // Khi chuyển sang AUTO, kiểm tra lại toàn bộ điều kiện (có thêm điều kiện thời tiết)
+            if (gardenState.moisture < 30) {
+                if (gardenState.airHumidity === null || gardenState.airHumidity < 80) {
+                    gardenState.isPumpOn = true;
+                }
+            }
             else if (gardenState.moisture >= 65) gardenState.isPumpOn = false;
+
+            if (gardenState.airHumidity && gardenState.airHumidity >= 80) {
+                 gardenState.isPumpOn = false;
+            }
         }
     } 
     else if (command === 'pump' && !gardenState.isOffline) {
@@ -113,6 +159,8 @@ app.post("/api/web-control", (req, res) => {
     broadcastState();
     res.json({ success: true, state: gardenState });
 });
+
+// Chỗ này bạn có thể chèn thêm API gửi mail (/system-alarm) nếu đang dùng tính năng gửi mail nhé!
 
 app.get("/", (req, res) => {
     const files = fs.readdirSync(__dirname);
