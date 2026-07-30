@@ -447,7 +447,7 @@
         }
 
         // =========================================================
-        // 4. OPEN-METEO WEATHER API
+        // 4. OPEN-METEO WEATHER API (ĐÃ TÍCH HỢP ĐỒNG BỘ SERVER)
         // =========================================================
         function toggleWeatherAccordion() {
             const weatherCard = document.getElementById("weather-main-card");
@@ -462,11 +462,29 @@
                 const data = await res.json();
                 let ch = new Date().getHours();
                 
+                // Lấy độ ẩm không khí hiện tại
+                const airHumidity = data.current.relative_humidity_2m;
+                
                 document.getElementById("temp-val").innerText = Math.round(data.hourly.temperature_2m[ch]) + "°C";
-                document.getElementById("hum-val").innerText = data.current.relative_humidity_2m + "%";
+                document.getElementById("hum-val").innerText = airHumidity + "%";
                 document.getElementById("wind-val").innerText = data.hourly.wind_speed_10m[ch] + " km/h";
                 document.getElementById("rain-val").innerText = data.hourly.rain[ch] + " mm";
                 document.getElementById("soil-temp-val").innerText = data.hourly.soil_temperature_6cm[ch] + "°C";
+                
+                // ----------------------------------------------------------------
+                // PHẦN MỚI THÊM: ĐỒNG BỘ ĐỘ ẨM KHÍ LÊN SERVER NODE.JS
+                // ----------------------------------------------------------------
+                try {
+                    await fetch("/api/weather-sync", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ airHumidity: airHumidity })
+                    });
+                    console.log("✅ Đã đồng bộ độ ẩm khí (" + airHumidity + "%) lên Server để auto control.");
+                } catch (syncError) {
+                    console.error("❌ Lỗi đồng bộ lên Server Node.js:", syncError);
+                }
+                // ----------------------------------------------------------------
                 
                 let apiDate = new Date(data.hourly.time[ch]);
                 document.getElementById("api-time-val").innerText = apiDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + " (" + apiDate.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'}) + ")";
@@ -497,7 +515,7 @@
         }
         
         fetchRealWeather();
-        setInterval(fetchRealWeather, 900000);
+        setInterval(fetchRealWeather, 900000); // 15 phút cập nhật 1 lần
 
         // =========================================================
         // 5. MANUAL SNAPSHOT CAMERA CONTROLLER (Bấm nút để chụp, giải phóng RAM 2KB tuyệt đối)
