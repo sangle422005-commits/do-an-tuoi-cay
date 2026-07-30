@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SmartGarden">
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
@@ -132,8 +132,18 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                
                 <div class="option-row">
-                    <span style="font-size: 0.9rem; color: #555;"><i class="fa-solid fa-cloud-sun-rain" style="color:#ffb11b;"></i> Tích hợp API Thời tiết:</span>
+                    <span style="font-size: 0.9rem; color: #555;"><i class="fa-solid fa-stopwatch" style="color:#2196f3; margin-right: 5px;"></i> Hẹn giờ tưới:</span>
+                    <div style="display: flex; gap: 5px;">
+                        <input type="number" id="timer-input" min="1" max="600" value="10" title="Số giây tưới" style="width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 6px; text-align: center; outline: none; font-size: 0.9rem;">
+                        <span style="font-size: 0.85rem; color: #777; align-self: center;">giây</span>
+                        <button onclick="startWateringTimer()" id="timer-btn" style="padding: 4px 12px; background: #2196f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; margin-left: 5px;">Tưới</button>
+                    </div>
+                </div>
+
+                <div class="option-row">
+                    <span style="font-size: 0.9rem; color: #555;"><i class="fa-solid fa-cloud-sun-rain" style="color:#ffb11b; margin-right: 5px;"></i> API Thời tiết:</span>
                     <label class="switch">
                         <input type="checkbox" id="weather-toggle" onchange="toggleWeatherMode(this)" checked>
                         <span class="slider"></span>
@@ -302,6 +312,7 @@
 
         let isAlarmEmailSent = false;
         let lastState = {};
+        let localCountdownTimer = null;
 
         // =========================================================
         // 1. UPDATE UI FUNCTION (State Diffing)
@@ -314,9 +325,30 @@
             let isPumpOn = data.isPumpOn;
             let activeMode = data.mode;
 
-            // Cập nhật trạng thái của nút gạt thời tiết nếu có sự thay đổi
             if (data.useWeatherAPI !== undefined) {
                 document.getElementById("weather-toggle").checked = data.useWeatherAPI;
+            }
+
+            // Vô hiệu hóa tính năng hẹn giờ nếu mất mạng
+            const timerBtn = document.getElementById("timer-btn");
+            const timerInput = document.getElementById("timer-input");
+            if (timerBtn && timerInput) {
+                timerInput.disabled = isOffline;
+                if (isOffline) {
+                    timerBtn.disabled = true;
+                    timerBtn.style.background = "#9e9e9e";
+                } else if (timerBtn.innerText === "Tưới") {
+                    timerBtn.disabled = false;
+                    timerBtn.style.background = "#2196f3";
+                }
+            }
+
+            // Hủy đếm ngược ảo nếu máy bơm bị tắt đột ngột
+            if (!isPumpOn && timerBtn.innerText.includes("Đang tưới")) {
+                clearInterval(localCountdownTimer);
+                timerBtn.innerText = "Tưới";
+                timerBtn.disabled = false;
+                timerBtn.style.background = "#2196f3";
             }
 
             if (isOffline && lastState.isOffline === false) {
@@ -446,7 +478,7 @@
         connectSSE();
 
         // =========================================================
-        // 3. OPTIMIZED CONTROL COMMANDS
+        // 3. OPTIMIZED CONTROL COMMANDS & WATERING TIMER
         // =========================================================
         async function setMode(mode) {
             updateUI({ ...lastState, mode: mode });
@@ -458,14 +490,48 @@
             await fetch("/api/web-control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: 'pump', value: checkbox.checked }) });
         }
 
-        // Hàm điều khiển bật/tắt Tích hợp API Thời tiết
         async function toggleWeatherMode(checkbox) {
             updateUI({ ...lastState, useWeatherAPI: checkbox.checked });
+            await fetch("/api/web-control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: 'weatherToggle', value: checkbox.checked }) });
+        }
+
+        // HÀM XỬ LÝ HẸN GIỜ TƯỚI
+        async function startWateringTimer() {
+            const secondsInput = document.getElementById("timer-input");
+            let seconds = parseInt(secondsInput.value);
+            
+            if (isNaN(seconds) || seconds <= 0) {
+                alert("Vui lòng nhập số giây hợp lệ (lớn hơn 0)!");
+                return;
+            }
+
+            // Gửi lệnh lên Server
             await fetch("/api/web-control", { 
                 method: "POST", 
                 headers: { "Content-Type": "application/json" }, 
-                body: JSON.stringify({ command: 'weatherToggle', value: checkbox.checked }) 
+                body: JSON.stringify({ command: 'water_timer', value: seconds }) 
             });
+
+            // Giao diện đếm ngược ảo để người dùng dễ nhìn
+            const btn = document.getElementById("timer-btn");
+            btn.disabled = true;
+            btn.style.background = "#ff9800"; // Đổi sang màu cam khi đếm ngược
+            
+            clearInterval(localCountdownTimer); // Hủy bộ đếm cũ nếu có
+            
+            btn.innerText = `Đang tưới (${seconds}s)`;
+            
+            localCountdownTimer = setInterval(() => {
+                seconds--;
+                if (seconds > 0) {
+                    btn.innerText = `Đang tưới (${seconds}s)`;
+                } else {
+                    clearInterval(localCountdownTimer);
+                    btn.innerText = "Tưới";
+                    btn.disabled = false;
+                    btn.style.background = "#2196f3";
+                }
+            }, 1000);
         }
 
         // =========================================================
@@ -484,7 +550,6 @@
                 const data = await res.json();
                 let ch = new Date().getHours();
                 
-                // Lấy độ ẩm không khí hiện tại
                 const airHumidity = data.current.relative_humidity_2m;
                 
                 document.getElementById("temp-val").innerText = Math.round(data.hourly.temperature_2m[ch]) + "°C";
@@ -493,20 +558,15 @@
                 document.getElementById("rain-val").innerText = data.hourly.rain[ch] + " mm";
                 document.getElementById("soil-temp-val").innerText = data.hourly.soil_temperature_6cm[ch] + "°C";
                 
-                // ----------------------------------------------------------------
-                // ĐỒNG BỘ ĐỘ ẨM KHÍ LÊN SERVER NODE.JS
-                // ----------------------------------------------------------------
                 try {
                     await fetch("/api/weather-sync", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ airHumidity: airHumidity })
                     });
-                    console.log("✅ Đã đồng bộ độ ẩm khí (" + airHumidity + "%) lên Server để auto control.");
                 } catch (syncError) {
                     console.error("❌ Lỗi đồng bộ lên Server Node.js:", syncError);
                 }
-                // ----------------------------------------------------------------
                 
                 let apiDate = new Date(data.hourly.time[ch]);
                 document.getElementById("api-time-val").innerText = apiDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + " (" + apiDate.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'}) + ")";
@@ -574,7 +634,6 @@
             const urlInput = document.getElementById("cam-url-input");
             if (urlInput) urlInput.value = savedUrl;
             
-            // Chụp 1 kiểu đầu tiên khi vừa vào trang
             captureCameraSnapshot();
         });
     </script>
