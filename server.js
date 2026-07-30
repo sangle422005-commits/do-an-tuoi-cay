@@ -10,7 +10,8 @@ app.use(express.json());
 // --- CENTRAL STATE MEMORY ---
 let gardenState = {
     moisture: null,      
-    airHumidity: null,  // THÊM: Lưu trữ độ ẩm không khí từ API thời tiết
+    airHumidity: null,  
+    useWeatherAPI: true, // CÔNG TẮC: Cho phép API Thời tiết can thiệp (mặc định Bật)
     isPumpOn: false,    
     mode: 'manual',     
     isOffline: true,     
@@ -47,10 +48,9 @@ app.post("/api/weather-sync", (req, res) => {
     if (airHumidity !== undefined) {
         gardenState.airHumidity = airHumidity;
         
-        // Nếu đang ở chế độ AUTO, kiểm tra lại điều kiện ngắt bơm
+        // Nếu đang AUTO, và CÓ cho phép dùng Weather API, kiểm tra lại điều kiện ngắt bơm
         if (gardenState.mode === 'auto' && !gardenState.isOffline && gardenState.isPumpOn) {
-            // Ví dụ: Nếu độ ẩm không khí >= 80%, ngắt bơm ngay lập tức (trời đang rất ẩm/mưa)
-            if (gardenState.airHumidity >= 80) {
+            if (gardenState.useWeatherAPI && gardenState.airHumidity >= 80) {
                 gardenState.isPumpOn = false;
                 console.log("🌦️ [THỜI TIẾT] Độ ẩm không khí cao, TỰ ĐỘNG TẮT BƠM!");
                 broadcastState();
@@ -82,19 +82,12 @@ app.post("/api/esp-sync", (req, res) => {
     if (gardenState.mode === 'auto' && !gardenState.isOffline) {
         const previousPumpState = gardenState.isPumpOn;
         
-        // Logic cơ bản: Đất khô thì bơm, đất ướt thì dừng
-        if (gardenState.moisture < 30) {
-            // Chỉ cho phép bật bơm nếu độ ẩm không khí bình thường (< 80%)
-            if (gardenState.airHumidity === null || gardenState.airHumidity < 80) {
-                gardenState.isPumpOn = true;
-            }
-        } 
-        else if (gardenState.moisture >= 85) {
-            gardenState.isPumpOn = false;
-        }
+        // 1. Logic cơ bản: Đất khô thì bơm, đất ướt thì dừng
+        if (gardenState.moisture < 30) gardenState.isPumpOn = true;
+        else if (gardenState.moisture >= 85) gardenState.isPumpOn = false;
         
-        // Ghi đè khẩn cấp: Nếu không khí quá ẩm (>= 80%), ép tắt máy bơm luôn
-        if (gardenState.airHumidity && gardenState.airHumidity >= 80) {
+        // 2. Logic nâng cao: Nếu bật chức năng "Tích hợp Thời tiết" VÀ không khí quá ẩm (>= 80%), ép tắt bơm
+        if (gardenState.useWeatherAPI && gardenState.airHumidity && gardenState.airHumidity >= 80) {
              gardenState.isPumpOn = false;
         }
         
@@ -138,15 +131,10 @@ app.post("/api/web-control", (req, res) => {
     if (command === 'mode') {
         gardenState.mode = value; 
         if (value === 'auto' && !gardenState.isOffline && gardenState.moisture !== null) {
-            // Khi chuyển sang AUTO, kiểm tra lại toàn bộ điều kiện (có thêm điều kiện thời tiết)
-            if (gardenState.moisture < 30) {
-                if (gardenState.airHumidity === null || gardenState.airHumidity < 80) {
-                    gardenState.isPumpOn = true;
-                }
-            }
+            if (gardenState.moisture < 30) gardenState.isPumpOn = true;
             else if (gardenState.moisture >= 65) gardenState.isPumpOn = false;
 
-            if (gardenState.airHumidity && gardenState.airHumidity >= 80) {
+            if (gardenState.useWeatherAPI && gardenState.airHumidity && gardenState.airHumidity >= 80) {
                  gardenState.isPumpOn = false;
             }
         }
@@ -155,12 +143,14 @@ app.post("/api/web-control", (req, res) => {
         gardenState.mode = 'manual'; 
         gardenState.isPumpOn = value;
     }
+    // Lệnh gạt nút Bật/Tắt tích hợp API Thời tiết từ giao diện
+    else if (command === 'weatherToggle') {
+        gardenState.useWeatherAPI = value;
+    }
 
     broadcastState();
     res.json({ success: true, state: gardenState });
 });
-
-// Chỗ này bạn có thể chèn thêm API gửi mail (/system-alarm) nếu đang dùng tính năng gửi mail nhé!
 
 app.get("/", (req, res) => {
     const files = fs.readdirSync(__dirname);
