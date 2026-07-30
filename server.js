@@ -15,12 +15,13 @@ let gardenState = {
     isPumpOn: false,    
     mode: 'manual',     
     isOffline: true,     
-    lastPingTime: 0
+    lastPingTime: 0,
+    scheduledWatering: null // Lưu trữ lịch hẹn: { targetTime: timestamp, durationMs: number, label: string }
 };
 
 // --- REALTIME SSE CONNECTION MANAGER ---
 let sseClients = [];
-let wateringTimer = null; // Biến lưu trữ bộ đếm thời gian tưới
+let wateringTimer = null; // Bộ đếm tắt bơm khi đang tưới
 
 function broadcastState() {
     sseClients.forEach(client => {
@@ -35,28 +36,49 @@ function clearWateringTimer() {
     }
 }
 
-// --- HEARTBEAT: AUTOMATICALLY DETECT ESP32 DISCONNECT / POWER LOSS ---
+// --- HEARTBEAT & SCHEDULED TIMER CHECKER ---
 setInterval(() => {
+    // 1. Kiểm tra mất kết nối ESP32
     if (!gardenState.isOffline && (Date.now() - gardenState.lastPingTime > 8000)) {
         gardenState.isOffline = true;
         gardenState.moisture = null;  
-        gardenState.isPumpOn = false; // Safety cutoff when offline
-        clearWateringTimer(); // Hủy bỏ bộ đếm nếu mất mạng
+        gardenState.isPumpOn = false; 
+        clearWateringTimer();
         console.log("❌ [ESP32] HARDWARE CONNECTION LOST OR POWER OFF!");
-        
         broadcastState();
     }
-}, 2000);
+
+    // 2. Kiểm tra lịch hẹn giờ tưới theo Ngày & Giờ thực tế
+    if (gardenState.scheduledWatering && !gardenState.isOffline) {
+        const now = Date.now();
+        if (now >= gardenState.scheduledWatering.targetTime) {
+            const duration = gardenState.scheduledWatering.durationMs;
+            console.log(`⏰ [HẸN GIỜ] Đã đến thời gian hẹn! Bật máy bơm trong ${duration / 1000} giây.`);
+            
+            gardenState.mode = 'manual';
+            gardenState.isPumpOn = true;
+            gardenState.scheduledWatering = null; // Xóa lịch sau khi đã kích hoạt
+            broadcastState();
+
+            // Tự động tắt sau số giây được cấu hình
+            clearWateringTimer();
+            wateringTimer = setTimeout(() => {
+                gardenState.isPumpOn = false;
+                console.log("⏰ [Hẹn giờ] Đã hết thời gian tưới theo lịch. Tự động tắt bơm.");
+                broadcastState();
+                wateringTimer = null;
+            }, duration);
+        }
+    }
+}, 1000);
 
 // =========================================================
-// API LẤY THÔNG SỐ THỜI TIẾT TỪ FRONTEND ĐỂ ĐIỀU KHIỂN TỰ ĐỘNG
+// API LẤY THÔNG SỐ THỜI TIẾT TỪ FRONTEND
 // =========================================================
 app.post("/api/weather-sync", (req, res) => {
     const { airHumidity } = req.body;
-    
     if (airHumidity !== undefined) {
         gardenState.airHumidity = airHumidity;
-        
         if (gardenState.mode === 'auto' && !gardenState.isOffline && gardenState.isPumpOn) {
             if (gardenState.useWeatherAPI && gardenState.airHumidity >= 80) {
                 gardenState.isPumpOn = false;
@@ -135,8 +157,7 @@ app.post("/api/web-control", (req, res) => {
     
     if (command === 'mode') {
         gardenState.mode = value; 
-        clearWateringTimer(); // Đổi chế độ thì hủy bộ đếm hẹn giờ
-
+        clearWateringTimer();
         if (value === 'auto' && !gardenState.isOffline && gardenState.moisture !== null) {
             if (gardenState.moisture < 30) gardenState.isPumpOn = true;
             else if (gardenState.moisture >= 65) gardenState.isPumpOn = false;
@@ -149,30 +170,27 @@ app.post("/api/web-control", (req, res) => {
     else if (command === 'pump' && !gardenState.isOffline) {
         gardenState.mode = 'manual'; 
         gardenState.isPumpOn = value;
-        clearWateringTimer(); // Tự tay bật/tắt thì hủy mọi bộ đếm
+        clearWateringTimer();
     }
     else if (command === 'weatherToggle') {
         gardenState.useWeatherAPI = value;
     }
-    // Lệnh Hẹn giờ tưới từ giao diện Web
-    else if (command === 'water_timer' && !gardenState.isOffline) {
-        const durationMs = parseInt(value) * 1000;
-        if (durationMs > 0) {
-            gardenState.mode = 'manual'; // Ép sang chế độ thủ công
-            gardenState.isPumpOn = true;
-            
-            clearWateringTimer(); // Xóa bộ đếm cũ nếu có
-            
-            console.log(`⏱️ Đã kích hoạt tưới nước trong ${value} giây.`);
-            
-            // Lên lịch tắt máy bơm sau X giây
-            wateringTimer = setTimeout(() => {
-                gardenState.isPumpOn = false;
-                console.log(`⏱️ Đã hết ${value} giây. Bơm tự động tắt.`);
-                broadcastState();
-                wateringTimer = null;
-            }, durationMs);
+    // Lệnh tạo lịch hẹn giờ tưới mới theo Ngày & Thời gian cụ thể
+    else if (command === 'set_schedule' && !gardenState.isOffline) {
+        const { targetTime, durationSeconds, label } = value;
+        if (targetTime && durationSeconds) {
+            gardenState.scheduledWatering = {
+                targetTime: targetTime,
+                durationMs: durationSeconds * 1000,
+                label: label || "Lịch hẹn cá nhân"
+            };
+            console.log(`📅 Đã thiết lập lịch hẹn tưới vào lúc: ${new Date(targetTime).toLocaleString('vi-VN')} trong vòng ${durationSeconds} giây.`);
         }
+    }
+    // Lệnh hủy lịch hẹn
+    else if (command === 'cancel_schedule') {
+        gardenState.scheduledWatering = null;
+        console.log("❌ Đã hủy lịch hẹn tưới.");
     }
 
     broadcastState();
