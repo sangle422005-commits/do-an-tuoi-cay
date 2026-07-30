@@ -11,7 +11,7 @@ app.use(express.json());
 let gardenState = {
     moisture: null,      
     airHumidity: null,  
-    useWeatherAPI: true, // CÔNG TẮC: Cho phép API Thời tiết can thiệp (mặc định Bật)
+    useWeatherAPI: true, 
     isPumpOn: false,    
     mode: 'manual',     
     isOffline: true,     
@@ -20,11 +20,19 @@ let gardenState = {
 
 // --- REALTIME SSE CONNECTION MANAGER ---
 let sseClients = [];
+let wateringTimer = null; // Biến lưu trữ bộ đếm thời gian tưới
 
 function broadcastState() {
     sseClients.forEach(client => {
         client.res.write(`data: ${JSON.stringify(gardenState)}\n\n`);
     });
+}
+
+function clearWateringTimer() {
+    if (wateringTimer) {
+        clearTimeout(wateringTimer);
+        wateringTimer = null;
+    }
 }
 
 // --- HEARTBEAT: AUTOMATICALLY DETECT ESP32 DISCONNECT / POWER LOSS ---
@@ -33,6 +41,7 @@ setInterval(() => {
         gardenState.isOffline = true;
         gardenState.moisture = null;  
         gardenState.isPumpOn = false; // Safety cutoff when offline
+        clearWateringTimer(); // Hủy bỏ bộ đếm nếu mất mạng
         console.log("❌ [ESP32] HARDWARE CONNECTION LOST OR POWER OFF!");
         
         broadcastState();
@@ -48,7 +57,6 @@ app.post("/api/weather-sync", (req, res) => {
     if (airHumidity !== undefined) {
         gardenState.airHumidity = airHumidity;
         
-        // Nếu đang AUTO, và CÓ cho phép dùng Weather API, kiểm tra lại điều kiện ngắt bơm
         if (gardenState.mode === 'auto' && !gardenState.isOffline && gardenState.isPumpOn) {
             if (gardenState.useWeatherAPI && gardenState.airHumidity >= 80) {
                 gardenState.isPumpOn = false;
@@ -82,11 +90,9 @@ app.post("/api/esp-sync", (req, res) => {
     if (gardenState.mode === 'auto' && !gardenState.isOffline) {
         const previousPumpState = gardenState.isPumpOn;
         
-        // 1. Logic cơ bản: Đất khô thì bơm, đất ướt thì dừng
         if (gardenState.moisture < 30) gardenState.isPumpOn = true;
         else if (gardenState.moisture >= 85) gardenState.isPumpOn = false;
         
-        // 2. Logic nâng cao: Nếu bật chức năng "Tích hợp Thời tiết" VÀ không khí quá ẩm (>= 80%), ép tắt bơm
         if (gardenState.useWeatherAPI && gardenState.airHumidity && gardenState.airHumidity >= 80) {
              gardenState.isPumpOn = false;
         }
@@ -109,7 +115,6 @@ app.get("/api/web-events", (req, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
-    // Send current state on initial connection
     res.write(`data: ${JSON.stringify(gardenState)}\n\n`);
 
     const clientId = Date.now();
@@ -130,6 +135,8 @@ app.post("/api/web-control", (req, res) => {
     
     if (command === 'mode') {
         gardenState.mode = value; 
+        clearWateringTimer(); // Đổi chế độ thì hủy bộ đếm hẹn giờ
+
         if (value === 'auto' && !gardenState.isOffline && gardenState.moisture !== null) {
             if (gardenState.moisture < 30) gardenState.isPumpOn = true;
             else if (gardenState.moisture >= 65) gardenState.isPumpOn = false;
@@ -142,10 +149,30 @@ app.post("/api/web-control", (req, res) => {
     else if (command === 'pump' && !gardenState.isOffline) {
         gardenState.mode = 'manual'; 
         gardenState.isPumpOn = value;
+        clearWateringTimer(); // Tự tay bật/tắt thì hủy mọi bộ đếm
     }
-    // Lệnh gạt nút Bật/Tắt tích hợp API Thời tiết từ giao diện
     else if (command === 'weatherToggle') {
         gardenState.useWeatherAPI = value;
+    }
+    // Lệnh Hẹn giờ tưới từ giao diện Web
+    else if (command === 'water_timer' && !gardenState.isOffline) {
+        const durationMs = parseInt(value) * 1000;
+        if (durationMs > 0) {
+            gardenState.mode = 'manual'; // Ép sang chế độ thủ công
+            gardenState.isPumpOn = true;
+            
+            clearWateringTimer(); // Xóa bộ đếm cũ nếu có
+            
+            console.log(`⏱️ Đã kích hoạt tưới nước trong ${value} giây.`);
+            
+            // Lên lịch tắt máy bơm sau X giây
+            wateringTimer = setTimeout(() => {
+                gardenState.isPumpOn = false;
+                console.log(`⏱️ Đã hết ${value} giây. Bơm tự động tắt.`);
+                broadcastState();
+                wateringTimer = null;
+            }, durationMs);
+        }
     }
 
     broadcastState();
@@ -160,7 +187,6 @@ app.get("/", (req, res) => {
 });
 app.use(express.static(__dirname));
 
-// LISTEN ON DYNAMIC PORT FOR RENDER CLOUD
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Server running on Port: ${PORT}`);
