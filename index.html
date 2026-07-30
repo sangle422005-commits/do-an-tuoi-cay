@@ -133,16 +133,24 @@
                     </label>
                 </div>
                 
-                <div class="option-row">
-                    <span style="font-size: 0.9rem; color: #555;"><i class="fa-solid fa-stopwatch" style="color:#2196f3; margin-right: 5px;"></i> Hẹn giờ tưới:</span>
-                    <div style="display: flex; gap: 5px;">
-                        <input type="number" id="timer-input" min="1" max="600" value="10" title="Số giây tưới" style="width: 50px; padding: 4px; border: 1px solid #ccc; border-radius: 6px; text-align: center; outline: none; font-size: 0.9rem;">
-                        <span style="font-size: 0.85rem; color: #777; align-self: center;">giây</span>
-                        <button onclick="startWateringTimer()" id="timer-btn" style="padding: 4px 12px; background: #2196f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.3s; margin-left: 5px;">Tưới</button>
+                <div style="background: #f8fafc; padding: 10px; border-radius: 10px; border: 1px solid #e2e8f0; margin-top: 5px;">
+                    <div style="font-size: 0.85rem; font-weight: bold; color: #1e3d59; margin-bottom: 6px;">
+                        <i class="fa-regular fa-calendar-days" style="color:#2196f3; margin-right: 4px;"></i> Hẹn Lịch Tưới Theo Ngày Giờ:
+                    </div>
+                    <div style="display: flex; flex-direction: column; gap: 6px;">
+                        <input type="datetime-local" id="schedule-datetime" style="width: 100%; padding: 6px; border: 1px solid #cbd5e0; border-radius: 6px; font-size: 0.85rem; outline: none;">
+                        <div style="display: flex; gap: 5px; align-items: center;">
+                            <input type="number" id="schedule-duration" min="1" max="3600" value="10" placeholder="Giây" style="width: 60px; padding: 6px; border: 1px solid #cbd5e0; border-radius: 6px; text-align: center; font-size: 0.85rem; outline: none;">
+                            <span style="font-size: 0.85rem; color: #666;">giây tưới</span>
+                            <button onclick="setSchedule()" style="flex: 1; padding: 6px; background: #2196f3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85rem;">Đặt Lịch</button>
+                        </div>
+                    </div>
+                    <div id="schedule-status-box" style="margin-top: 6px; font-size: 0.8rem; color: #e53e3e; font-weight: bold; display: none; text-align: center;">
+                        Chưa có lịch hẹn nào.
                     </div>
                 </div>
 
-                <div class="option-row">
+                <div class="option-row" style="margin-top: 5px;">
                     <span style="font-size: 0.9rem; color: #555;"><i class="fa-solid fa-cloud-sun-rain" style="color:#ffb11b; margin-right: 5px;"></i> API Thời tiết:</span>
                     <label class="switch">
                         <input type="checkbox" id="weather-toggle" onchange="toggleWeatherMode(this)" checked>
@@ -282,7 +290,7 @@
 
     <script>
         // =========================================================
-        // WEB NOTIFICATION SETUP (Auto-asks permission once)
+        // WEB NOTIFICATION SETUP
         // =========================================================
         document.addEventListener("DOMContentLoaded", () => {
             if ("Notification" in window) {
@@ -312,10 +320,9 @@
 
         let isAlarmEmailSent = false;
         let lastState = {};
-        let localCountdownTimer = null;
 
         // =========================================================
-        // 1. UPDATE UI FUNCTION (State Diffing)
+        // 1. UPDATE UI FUNCTION
         // =========================================================
         function updateUI(data) {
             if (!data) return;
@@ -329,26 +336,15 @@
                 document.getElementById("weather-toggle").checked = data.useWeatherAPI;
             }
 
-            // Vô hiệu hóa tính năng hẹn giờ nếu mất mạng
-            const timerBtn = document.getElementById("timer-btn");
-            const timerInput = document.getElementById("timer-input");
-            if (timerBtn && timerInput) {
-                timerInput.disabled = isOffline;
-                if (isOffline) {
-                    timerBtn.disabled = true;
-                    timerBtn.style.background = "#9e9e9e";
-                } else if (timerBtn.innerText === "Tưới") {
-                    timerBtn.disabled = false;
-                    timerBtn.style.background = "#2196f3";
-                }
-            }
-
-            // Hủy đếm ngược ảo nếu máy bơm bị tắt đột ngột
-            if (!isPumpOn && timerBtn.innerText.includes("Đang tưới")) {
-                clearInterval(localCountdownTimer);
-                timerBtn.innerText = "Tưới";
-                timerBtn.disabled = false;
-                timerBtn.style.background = "#2196f3";
+            // Hiển thị trạng thái lịch hẹn giờ lên giao diện
+            const statusBox = document.getElementById("schedule-status-box");
+            if (data.scheduledWatering) {
+                const targetDateStr = new Date(data.scheduledWatering.targetTime).toLocaleString('vi-VN');
+                statusBox.style.display = "block";
+                statusBox.style.color = "#2b6cb0";
+                statusBox.innerHTML = `📅 Đang hẹn: ${targetDateStr} (${data.scheduledWatering.durationMs / 1000}s) <br><a href="#" onclick="cancelSchedule(); return false;" style="color:red; font-size:0.75rem;">[Hủy lịch]</a>`;
+            } else {
+                statusBox.style.display = "none";
             }
 
             if (isOffline && lastState.isOffline === false) {
@@ -423,14 +419,14 @@
                 alarmCard.classList.add("active");
                 alarmStatus.innerText = "LỖI KẾT NỐI PHẦN CỨNG";
                 if (!isAlarmEmailSent) {
-                    fetch("/system-alarm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issueType: "MẤT KẾT NỐI ESP32", message: `Hệ thống đã mất tín hiệu từ mạch quá 8 giây. Mạch có thể đã bị rút điện, rớt wifi hoặc hỏng hóc.` }) });
+                    fetch("/system-alarm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issueType: "MẤT KẾT NỐI ESP32", message: `Hệ thống đã mất tín hiệu từ mạch quá 8 giây.` }) });
                     isAlarmEmailSent = true;
                 }
             } else if (moisture < 30) {
                 alarmCard.classList.add("active");
                 alarmStatus.innerText = "HÚ CÒI CẢNH BÁO: ĐẤT KHÔ";
                 if (!isAlarmEmailSent) {
-                    fetch("/system-alarm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issueType: "Thiếu Nước Trầm Trọng", message: `Độ ẩm đất hiện tại đang ở mức nguy hiểm (${moisture}%).` }) });
+                    fetch("/system-alarm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ issueType: "Thiếu Nước Trầm Trọng", message: `Độ ẩm đất hiện tại ở mức nguy hiểm (${moisture}%).` }) });
                     isAlarmEmailSent = true;
                 }
             } else {
@@ -478,7 +474,7 @@
         connectSSE();
 
         // =========================================================
-        // 3. OPTIMIZED CONTROL COMMANDS & WATERING TIMER
+        // 3. CONTROL COMMANDS & SCHEDULER
         // =========================================================
         async function setMode(mode) {
             updateUI({ ...lastState, mode: mode });
@@ -495,47 +491,49 @@
             await fetch("/api/web-control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ command: 'weatherToggle', value: checkbox.checked }) });
         }
 
-        // HÀM XỬ LÝ HẸN GIỜ TƯỚI
-        async function startWateringTimer() {
-            const secondsInput = document.getElementById("timer-input");
-            let seconds = parseInt(secondsInput.value);
-            
-            if (isNaN(seconds) || seconds <= 0) {
-                alert("Vui lòng nhập số giây hợp lệ (lớn hơn 0)!");
+        // Hàm đặt lịch hẹn giờ theo Ngày & Giờ
+        async function setSchedule() {
+            const datetimeVal = document.getElementById("schedule-datetime").value;
+            const durationVal = parseInt(document.getElementById("schedule-duration").value);
+
+            if (!datetimeVal) {
+                alert("Vui lòng chọn ngày và giờ cụ thể để hẹn lịch!");
+                return;
+            }
+            if (isNaN(durationVal) || durationVal <= 0) {
+                alert("Vui lòng nhập thời lượng tưới hợp lệ (giây)!");
                 return;
             }
 
-            // Gửi lệnh lên Server
-            await fetch("/api/web-control", { 
-                method: "POST", 
-                headers: { "Content-Type": "application/json" }, 
-                body: JSON.stringify({ command: 'water_timer', value: seconds }) 
+            const targetTimestamp = new Date(datetimeVal).getTime();
+            if (targetTimestamp <= Date.now()) {
+                alert("Thời gian hẹn lịch phải lớn hơn thời điểm hiện tại!");
+                return;
+            }
+
+            await fetch("/api/web-control", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    command: 'set_schedule',
+                    value: { targetTime: targetTimestamp, durationSeconds: durationVal }
+                })
             });
 
-            // Giao diện đếm ngược ảo để người dùng dễ nhìn
-            const btn = document.getElementById("timer-btn");
-            btn.disabled = true;
-            btn.style.background = "#ff9800"; // Đổi sang màu cam khi đếm ngược
-            
-            clearInterval(localCountdownTimer); // Hủy bộ đếm cũ nếu có
-            
-            btn.innerText = `Đang tưới (${seconds}s)`;
-            
-            localCountdownTimer = setInterval(() => {
-                seconds--;
-                if (seconds > 0) {
-                    btn.innerText = `Đang tưới (${seconds}s)`;
-                } else {
-                    clearInterval(localCountdownTimer);
-                    btn.innerText = "Tưới";
-                    btn.disabled = false;
-                    btn.style.background = "#2196f3";
-                }
-            }, 1000);
+            alert("Đã thiết lập lịch hẹn giờ tưới thành công!");
+        }
+
+        // Hàm hủy lịch hẹn
+        async function cancelSchedule() {
+            await fetch("/api/web-control", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ command: 'cancel_schedule' })
+            });
         }
 
         // =========================================================
-        // 4. OPEN-METEO WEATHER API (ĐÃ TÍCH HỢP ĐỒNG BỘ SERVER)
+        // 4. OPEN-METEO WEATHER API
         // =========================================================
         function toggleWeatherAccordion() {
             const weatherCard = document.getElementById("weather-main-card");
@@ -564,9 +562,7 @@
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ airHumidity: airHumidity })
                     });
-                } catch (syncError) {
-                    console.error("❌ Lỗi đồng bộ lên Server Node.js:", syncError);
-                }
+                } catch (syncError) {}
                 
                 let apiDate = new Date(data.hourly.time[ch]);
                 document.getElementById("api-time-val").innerText = apiDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + " (" + apiDate.toLocaleDateString('vi-VN', {day: '2-digit', month: '2-digit'}) + ")";
@@ -591,13 +587,11 @@
                 }
                 
                 document.getElementById("weather-note").innerText = "Đã đồng bộ lúc: " + new Date().toLocaleTimeString('vi-VN');
-            } catch (e) {
-                console.log("Lỗi tải thời tiết", e);
-            }
+            } catch (e) {}
         }
         
         fetchRealWeather();
-        setInterval(fetchRealWeather, 900000); // 15 phút cập nhật 1 lần
+        setInterval(fetchRealWeather, 900000);
 
         // =========================================================
         // 5. MANUAL SNAPSHOT CAMERA CONTROLLER 
@@ -633,7 +627,6 @@
             const savedUrl = localStorage.getItem("cam_feed_url") || defaultCamUrl;
             const urlInput = document.getElementById("cam-url-input");
             if (urlInput) urlInput.value = savedUrl;
-            
             captureCameraSnapshot();
         });
     </script>
